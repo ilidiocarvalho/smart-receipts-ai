@@ -23,7 +23,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const LEGACY_KEYS = ['v1.0.0', 'smart_receipts_v111_auth', 'smart_receipts_v112_auth'];
 const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.1.5";
+const APP_VERSION = "1.1.6";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -69,7 +69,7 @@ const App: React.FC = () => {
           setIsSyncing(true);
           const cloudData = await firebaseService.syncPull(email);
           if (cloudData) {
-            setState(prev => ({ ...prev, ...cloudData }));
+            setState(prev => ({ ...prev, ...cloudData, isLoading: false }));
           }
         } catch (e) { console.error("Erro ao restaurar sessão", e); }
       }
@@ -113,7 +113,7 @@ const App: React.FC = () => {
       }
       const data = await firebaseService.syncPull(email);
       if (data) {
-        setState(prev => ({ ...prev, ...data }));
+        setState(prev => ({ ...prev, ...data, isLoading: false }));
         setActiveTab('dashboard');
       }
     } catch (err) {
@@ -138,7 +138,8 @@ const App: React.FC = () => {
         ...prev,
         userProfile: profile,
         history: migratedData?.history || [],
-        chatHistory: migratedData?.chatHistory || []
+        chatHistory: migratedData?.chatHistory || [],
+        isLoading: false
       }));
 
       LEGACY_KEYS.forEach(k => localStorage.removeItem(k));
@@ -177,7 +178,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="w-16 h-16 border-4 border-white/10 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
-        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-indigo-400 animate-pulse">Sincronizando Cofre Global...</p>
+        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-indigo-400 animate-pulse">Acedendo ao Cofre Global...</p>
       </div>
     );
   }
@@ -214,7 +215,7 @@ const App: React.FC = () => {
                 </div>
                 <div className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm flex items-center gap-3 transition-all duration-500 ${isSyncing ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white text-emerald-600 border-slate-200'}`}>
                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`}></div>
-                   {isSyncing ? 'A Guardar...' : isCloudActive ? 'Cloud Online' : 'Local Guardado'}
+                   {isSyncing ? 'A Sincronizar...' : isCloudActive ? 'Cloud Online' : 'Local Guardado'}
                 </div>
               </header>
             ) : (
@@ -335,7 +336,7 @@ const AuthScreen = ({ onSignIn, onSignUp, isLoading, error, legacyDetected, onCl
           <div className="space-y-2">
             <h1 className="text-5xl font-black text-slate-900 tracking-tighter">SmartReceipts</h1>
             <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px]">
-              {isCloudActive ? 'Cloud Engine Active v1.1.5' : 'Waiting for Cloud Keys...'}
+              {isCloudActive ? 'Cloud Engine Active v1.1.6' : 'Waiting for Cloud Keys...'}
             </p>
           </div>
           {legacyDetected && (
