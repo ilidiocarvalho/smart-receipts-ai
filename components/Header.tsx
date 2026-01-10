@@ -21,7 +21,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
             <i className="fa-solid fa-receipt text-sm"></i>
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-slate-900 leading-none">SmartReceipts</h1>
+            <h1 className="text-lg font-bold text-slate-900 leading-none tracking-tight">SmartReceipts</h1>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">AI Engine</p>
           </div>
         </div>
@@ -29,26 +29,26 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
           <NavBtn label="Home" icon="fa-house" active={activeTab === 'dashboard'} onClick={() => onTabChange('dashboard')} />
-          <NavBtn label="History" icon="fa-clock" active={activeTab === 'history'} onClick={() => onTabChange('history')} />
-          <NavBtn label="AI Chat" icon="fa-robot" active={activeTab === 'chat'} onClick={() => onTabChange('chat')} />
-          <NavBtn label="Reports" icon="fa-chart-pie" active={activeTab === 'reports'} onClick={() => onTabChange('reports')} />
+          <NavBtn label="Histórico" icon="fa-clock" active={activeTab === 'history'} onClick={() => onTabChange('history')} />
+          <NavBtn label="Coach IA" icon="fa-robot" active={activeTab === 'chat'} onClick={() => onTabChange('chat')} />
+          <NavBtn label="Relatórios" icon="fa-chart-pie" active={activeTab === 'reports'} onClick={() => onTabChange('reports')} />
         </nav>
 
         {/* Sync & User Status */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter hidden xs:block">
-              {isSyncing ? 'Syncing...' : 'Encrypted & Local'}
+          <div className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-colors ${isSyncing ? 'bg-amber-50' : 'bg-slate-50'}`}>
+            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></div>
+            <span className={`text-[10px] font-bold uppercase tracking-tighter hidden xs:block ${isSyncing ? 'text-amber-600' : 'text-slate-400'}`}>
+              {isSyncing ? 'A Guardar...' : 'Seguro'}
             </span>
           </div>
-          <div 
+          <button 
             onClick={() => onTabChange('settings')}
-            className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all cursor-pointer hover:scale-110 ${activeTab === 'settings' ? 'bg-indigo-600 text-white border-indigo-700 shadow-md ring-4 ring-indigo-50' : 'bg-slate-900 text-white border-slate-700 shadow-sm'}`}
-            title="User Profile"
+            className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg ring-4 ring-indigo-50' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 shadow-sm'}`}
+            title="Definições do Perfil"
           >
-            <i className="fa-solid fa-user text-xs"></i>
-          </div>
+            <i className="fa-solid fa-sliders text-xs"></i>
+          </button>
         </div>
       </div>
     </header>
