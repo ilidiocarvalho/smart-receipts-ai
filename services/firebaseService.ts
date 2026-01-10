@@ -1,57 +1,97 @@
 
-/**
- * FIREBASE REAL-TIME SERVICE
- * Esta implementação permite sincronização real entre múltiplos dispositivos.
- * NOTA: Para funcionar, deves inserir as tuas credenciais do Firebase Console.
- */
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
-// Simulação de persistência global enquanto as chaves não são inseridas
-// Para testes rápidos inter-dispositivos sem backend próprio, 
-// o ideal seria usar o Firestore. Aqui implementamos a estrutura final.
+// Configuração obtida das variáveis de ambiente (Seguro para Vercel)
+const firebaseConfig = {
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID
+};
 
-const GLOBAL_DB_KEY = 'SMART_RECEIPTS_GLOBAL_CLOUD_V2';
+// Inicializar Firebase apenas se as chaves existirem
+const isFirebaseConfigured = !!firebaseConfig.apiKey;
+const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
+const db = app ? getFirestore(app) : null;
+
+const LOCAL_FALLBACK_KEY = 'SR_MOCK_CLOUD_FALLBACK';
 
 export const firebaseService = {
   /**
-   * Esta função simula um fetch para uma base de dados global externa.
-   * Numa implementação real, usaríamos: doc(db, "users", email)
+   * Grava dados no Firestore Real. Se não houver chaves, avisa e usa local.
    */
   async syncPush(email: string, data: any): Promise<void> {
     const key = email.toLowerCase().trim();
     if (!key) return;
 
-    // Simulação de Latência de Rede Real
-    await new Promise(r => setTimeout(r, 500));
-    
-    // Numa app real com backend (Firestore/Supabase):
-    // await setDoc(doc(db, "users", key), data);
-    
-    // Para manter a funcionalidade nesta demo mas avisar da limitação:
-    const globalMock = JSON.parse(localStorage.getItem(GLOBAL_DB_KEY) || '{}');
-    globalMock[key] = data;
-    localStorage.setItem(GLOBAL_DB_KEY, JSON.stringify(globalMock));
-    
-    console.info(`🌍 [Real Cloud] Dados persistidos para: ${key}`);
+    if (!db) {
+      console.warn("⚠️ Firebase não configurado. Usando fallback local.");
+      const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
+      mock[key] = data;
+      localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(mock));
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, "users", key), {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      console.info(`✅ [Firestore] Sincronizado: ${key}`);
+    } catch (error) {
+      console.error("❌ Erro ao sincronizar com Firestore:", error);
+      throw error;
+    }
   },
 
+  /**
+   * Lê dados do Firestore Real.
+   */
   async syncPull(email: string): Promise<any | null> {
     const key = email.toLowerCase().trim();
     if (!key) return null;
 
-    await new Promise(r => setTimeout(r, 800));
-    
-    const globalMock = JSON.parse(localStorage.getItem(GLOBAL_DB_KEY) || '{}');
-    return globalMock[key] || null;
+    if (!db) {
+      const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
+      return mock[key] || null;
+    }
+
+    try {
+      const docSnap = await getDoc(doc(db, "users", key));
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("❌ Erro ao ler do Firestore:", error);
+      return null;
+    }
   },
 
+  /**
+   * Verifica existência de utilizador na Cloud Real.
+   */
   async userExists(email: string): Promise<boolean> {
     const key = email.toLowerCase().trim();
-    const globalMock = JSON.parse(localStorage.getItem(GLOBAL_DB_KEY) || '{}');
-    return !!globalMock[key];
+    if (!db) {
+      const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
+      return !!mock[key];
+    }
+
+    try {
+      const docSnap = await getDoc(doc(db, "users", key));
+      return docSnap.exists();
+    } catch (error) {
+      return false;
+    }
   },
 
   async uploadImage(base64: string): Promise<string> {
-    // Simula upload para Firebase Storage
-    return `https://firebasestorage.googleapis.com/v0/b/smart-receipts/o/${Date.now()}.jpg?alt=media`;
+    // Por agora mantemos o base64 ou link simulado. 
+    // Numa fase seguinte podemos ligar o Firebase Storage.
+    return `data:image/jpeg;base64,${base64}`;
   }
 };
