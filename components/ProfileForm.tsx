@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserContext, AppState } from '../types';
 
 interface ProfileFormProps {
@@ -21,11 +21,21 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
   onToggleCloud,
   version
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  // Se não houver nome, começa com o form aberto
+  const [isOpen, setIsOpen] = useState(!profile.user_name);
   const [formData, setFormData] = useState(profile);
+
+  // Sincroniza o form se o perfil mudar externamente (ex: import)
+  useEffect(() => {
+    setFormData(profile);
+  }, [profile]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.user_name.trim()) {
+      alert("Por favor, introduza o seu nome.");
+      return;
+    }
     onUpdate(formData);
     setIsOpen(false);
   };
@@ -48,7 +58,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
     const dataStr = JSON.stringify({ userProfile: profile, history: fullHistory }, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     const exportFileDefaultName = `smart_receipts_backup_${new Date().toISOString().split('T')[0]}.json`;
-    
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
@@ -58,17 +67,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        if (confirm("This will overwrite your current history and profile. Continue?")) {
+        if (confirm("Isto irá substituir o histórico atual. Continuar?")) {
           onImportData(json);
-          alert("Data imported successfully!");
         }
       } catch (err) {
-        alert("Invalid backup file.");
+        alert("Ficheiro inválido.");
       }
     };
     reader.readAsText(file);
@@ -76,6 +83,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
 
   return (
     <div className="space-y-6">
+      {!profile.user_name && (
+        <div className="bg-indigo-600 text-white p-6 rounded-2xl shadow-lg animate-in zoom-in duration-300">
+          <h3 className="text-xl font-bold mb-2">Primeira vez por aqui? 🚀</h3>
+          <p className="text-sm opacity-90">Diz-nos o teu nome e o teu orçamento mensal para podermos começar a ajudar-te!</p>
+        </div>
+      )}
+
       {/* Profile Section */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <button 
@@ -83,8 +97,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition"
         >
           <div className="flex items-center gap-3">
-            <i className="fa-solid fa-user-circle text-indigo-500 text-xl"></i>
-            <span className="font-semibold text-slate-800">User Profile: {profile.user_name}</span>
+            <i className={`fa-solid fa-user-circle ${profile.user_name ? 'text-indigo-500' : 'text-slate-300'} text-xl`}></i>
+            <span className="font-semibold text-slate-800">
+              {profile.user_name ? `Perfil de ${profile.user_name}` : 'Configurar Perfil'}
+            </span>
           </div>
           <i className={`fa-solid fa-chevron-${isOpen ? 'up' : 'down'} text-slate-400`}></i>
         </button>
@@ -93,16 +109,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           <form onSubmit={handleSubmit} className="p-6 border-t border-slate-100 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nome</label>
                 <input 
                   type="text" 
+                  required
                   value={formData.user_name}
+                  placeholder="Ex: Bruno"
                   onChange={e => setFormData({ ...formData, user_name: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Dietary Regime</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Regime Alimentar</label>
                 <select 
                   value={formData.dietary_regime}
                   onChange={e => setFormData({ ...formData, dietary_regime: e.target.value })}
@@ -120,20 +138,21 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Budget (€)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Orçamento Mensal (€)</label>
                 <input 
                   type="number" 
-                  value={formData.monthly_budget}
-                  onChange={e => setFormData({ ...formData, monthly_budget: parseFloat(e.target.value) })}
+                  value={formData.monthly_budget || ''}
+                  placeholder="Ex: 300"
+                  onChange={e => setFormData({ ...formData, monthly_budget: parseFloat(e.target.value) || 0 })}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Family Context</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Contexto Familiar</label>
                 <input 
                   type="text" 
                   value={formData.family_context}
-                  placeholder="e.g., Living alone, with kids..."
+                  placeholder="Ex: Com filho pequeno"
                   onChange={e => setFormData({ ...formData, family_context: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
@@ -141,7 +160,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Goals</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos</label>
               <div className="space-y-2">
                 {formData.goals.map((goal, idx) => (
                   <div key={idx} className="flex gap-2">
@@ -151,93 +170,44 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                       onChange={e => updateGoal(idx, e.target.value)}
                       className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     />
-                    <button type="button" onClick={() => removeGoal(idx)} className="text-rose-500 hover:bg-rose-50 px-3 rounded-lg">
+                    <button type="button" onClick={() => removeGoal(idx)} className="text-rose-500 px-2">
                       <i className="fa-solid fa-trash-can"></i>
                     </button>
                   </div>
                 ))}
-                <button 
-                  type="button" 
-                  onClick={addGoal}
-                  className="text-sm text-indigo-600 font-semibold hover:underline"
-                >
-                  + Add Goal
-                </button>
+                <button type="button" onClick={addGoal} className="text-sm text-indigo-600 font-bold hover:underline">+ Adicionar Objetivo</button>
               </div>
             </div>
 
-            <button 
-              type="submit"
-              className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition"
-            >
-              Save Profile
+            <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
+              Guardar Perfil
             </button>
           </form>
         )}
       </div>
 
-      {/* Cloud & Data Section */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+      {/* Tools Section */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-4">
-            <i className="fa-solid fa-cloud text-indigo-500"></i>
-            Sync & Security
-          </h3>
-          <div className={`p-4 rounded-xl border transition-all flex items-center justify-between ${isCloudEnabled ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isCloudEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                <i className={`fa-solid ${isCloudEnabled ? 'fa-cloud-check' : 'fa-cloud'}`}></i>
-              </div>
-              <div>
-                <p className={`text-sm font-bold ${isCloudEnabled ? 'text-emerald-900' : 'text-slate-900'}`}>
-                  {isCloudEnabled ? 'Cloud Sync Active' : 'Offline Mode (Local Only)'}
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
-                  {isCloudEnabled ? 'Data backed up to Google Cloud' : 'Data stored on this device only'}
-                </p>
-              </div>
-            </div>
-            <button 
-              onClick={onToggleCloud}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${
-                isCloudEnabled 
-                  ? 'bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
-              }`}
-            >
-              {isCloudEnabled ? 'Disconnect' : 'Connect Cloud'}
-            </button>
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-slate-100">
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-4">
-            <i className="fa-solid fa-database text-slate-400"></i>
-            Manual Backups
-          </h3>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Dados & Backup</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button 
-              onClick={handleExport}
-              className="bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all"
-            >
-              <i className="fa-solid fa-download text-indigo-500"></i>
-              Export JSON
+            <button onClick={handleExport} className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-xl text-sm font-bold hover:bg-slate-50">
+              <i className="fa-solid fa-download text-indigo-500"></i> Exportar JSON
             </button>
-            
-            <label className="bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all cursor-pointer text-center">
-              <i className="fa-solid fa-upload text-indigo-500"></i>
-              Import JSON
+            <label className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-xl text-sm font-bold hover:bg-slate-50 cursor-pointer">
+              <i className="fa-solid fa-upload text-indigo-500"></i> Importar JSON
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
           </div>
         </div>
-      </div>
-
-      {/* Footer Version */}
-      <div className="text-center py-4">
-        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
-          SmartReceipts AI • Build {version}
-        </p>
+        
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Build {version}</p>
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+             <i className="fa-solid fa-shield-halved text-emerald-500"></i> 
+             Armazenamento Local Seguro
+          </div>
+        </div>
       </div>
     </div>
   );
