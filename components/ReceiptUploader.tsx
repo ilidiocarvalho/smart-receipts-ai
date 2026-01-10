@@ -24,13 +24,11 @@ const ReceiptUploader: React.FC<ReceiptUploaderProps> = ({ onUpload, isLoading }
   return (
     <div className="relative">
       {/* 
-        v1.3.0: Added accept images and capture environment 
-        This allows users to choose between taking a photo, library, or files (inc. cloud drives)
+        v1.3.1: Removed capture="environment" to allow OS picker (Camera, Gallery, Drive)
       */}
       <input 
         type="file" 
         accept="image/*" 
-        capture="environment"
         className="hidden" 
         ref={fileInputRef}
         onChange={handleFileChange}

@@ -29,7 +29,7 @@ const INITIAL_PROFILE: UserContext = {
 };
 
 const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.3.1";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -171,7 +171,8 @@ const App: React.FC = () => {
       setDraftReceipt(newDraft);
       setState(prev => ({ ...prev, isLoading: false }));
     } catch (err: any) {
-      setState(prev => ({ ...prev, isLoading: false, error: "Erro ao processar imagem." }));
+      console.error("Erro no processamento:", err);
+      setState(prev => ({ ...prev, isLoading: false, error: "Erro ao processar imagem. Tente uma foto mais nítida." }));
     }
   };
 

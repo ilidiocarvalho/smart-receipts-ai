@@ -10,7 +10,7 @@ const getAIClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-export async function compressImage(base64Str: string, maxWidth = 1200, quality = 0.8): Promise<string> {
+export async function compressImage(base64Str: string, maxWidth = 1600, quality = 0.85): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = `data:image/jpeg;base64,${base64Str}`;
@@ -40,7 +40,7 @@ export async function compressImage(base64Str: string, maxWidth = 1200, quality 
       const compressed = canvas.toDataURL('image/jpeg', quality);
       resolve(compressed.split(',')[1]);
     };
-    img.onerror = reject;
+    img.onerror = (e) => reject("Erro ao carregar imagem para compressão.");
   });
 }
 
@@ -51,9 +51,10 @@ export async function processReceipt(
 ): Promise<ReceiptData> {
   try {
     const ai = getAIClient();
+    // Compressão ligeiramente maior para garantir que passa nos limites da API sem perder OCR
     const processedImage = await compressImage(base64Image);
 
-    const prompt = `
+    const promptText = `
       Analyze the provided receipt image and the user's personal context.
       
       # User Context
@@ -67,7 +68,7 @@ export async function processReceipt(
       5. Coaching: Provide a supportive message as a personal coach.
 
       # Strict Output Format:
-      Return a single JSON object.
+      Return a single JSON object matching the defined schema.
     `;
 
     const imagePart = {
@@ -75,6 +76,10 @@ export async function processReceipt(
         mimeType: "image/jpeg",
         data: processedImage,
       },
+    };
+
+    const textPart = {
+      text: promptText
     };
 
     const responseSchema = {
@@ -106,6 +111,7 @@ export async function processReceipt(
               is_discounted: { type: Type.BOOLEAN },
               tags: { type: Type.ARRAY, items: { type: Type.STRING } },
             },
+            required: ["name_raw", "name_clean", "category", "qty", "unit_price", "total_price"],
           },
         },
         analysis: {
@@ -116,15 +122,17 @@ export async function processReceipt(
             flagged_items: { type: Type.ARRAY, items: { type: Type.STRING } },
             insights: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
+          required: ["budget_impact_percentage", "dietary_compliance", "flagged_items", "insights"],
         },
         coach_message: { type: Type.STRING },
       },
       required: ["meta", "items", "analysis", "coach_message"],
     };
 
+    // v1.3.1: Using gemini-3-flash-preview for better balance of speed and image understanding
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: [{ parts: [imagePart, { text: prompt }] }],
+      model: "gemini-3-flash-preview",
+      contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
@@ -132,13 +140,14 @@ export async function processReceipt(
       },
     });
 
-    const text = response.text;
-    if (!text) throw new Error("A IA não retornou dados.");
+    const resultText = response.text;
+    if (!resultText) throw new Error("A IA não retornou dados de texto.");
     
-    return JSON.parse(text);
+    return JSON.parse(resultText);
   } catch (error) {
+    console.error("Erro Gemini:", error);
     if (retryCount < 1) {
-      console.warn("Retrying AI process...");
+      console.warn("Tentativa de recuperação (retry)...");
       return processReceipt(base64Image, userContext, retryCount + 1);
     }
     throw error;
@@ -173,7 +182,7 @@ export async function chatWithAssistant(
   `;
 
   const chat = ai.chats.create({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3-flash-preview',
     config: {
       systemInstruction,
     }
