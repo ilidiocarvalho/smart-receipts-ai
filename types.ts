@@ -8,12 +8,12 @@ export interface ChatMessage {
 
 export interface UserContext {
   user_name: string;
+  email: string; // Identificador único universal
   dietary_regime: string;
   monthly_budget: number;
   current_month_spend: number;
   family_context: string;
   goals: string[];
-  syncKey?: string; // Chave única para sincronização entre dispositivos
 }
 
 export interface ReceiptItem {

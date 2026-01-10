@@ -1,41 +1,43 @@
 
 /**
  * FIREBASE INTEGRATION SERVICE (PROD SIMULATION)
- * Em produção real, estes métodos interagem com o Firestore.
+ * Sincronização centralizada baseada em E-mail.
  */
 
-export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-// Mock Database em memória para simular o comportamento da rede
-const MOCK_CLOUD_DB: Record<string, any> = {};
+// Simulação de base de dados global na Cloud (em memória do runtime)
+const GLOBAL_CLOUD_STORAGE: Record<string, any> = {};
 
 export const firebaseService = {
   async uploadImage(base64: string): Promise<string> {
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 600));
     return "https://images.unsplash.com/photo-1540340061722-9293d5163008?auto=format&fit=crop&q=80&w=400";
   },
 
-  async saveUserData(syncKey: string, data: any): Promise<void> {
-    console.info(`☁️ [Cloud] A sincronizar dados para a chave: ${syncKey}`);
-    MOCK_CLOUD_DB[syncKey] = JSON.parse(JSON.stringify(data)); 
-    await new Promise(r => setTimeout(r, 500));
+  /**
+   * Guarda os dados completos do utilizador associados ao e-mail
+   */
+  async syncPush(email: string, data: any): Promise<void> {
+    const key = email.toLowerCase().trim();
+    console.info(`☁️ [Cloud Sync] PUSH para: ${key}`);
+    GLOBAL_CLOUD_STORAGE[key] = JSON.parse(JSON.stringify(data));
+    await new Promise(r => setTimeout(r, 400));
   },
 
-  async fetchUserData(syncKey: string): Promise<any | null> {
-    console.info(`☁️ [Cloud] A procurar dados para a chave: ${syncKey}`);
-    await new Promise(r => setTimeout(r, 1200));
-    return MOCK_CLOUD_DB[syncKey] || null;
+  /**
+   * Recupera os dados associados a um e-mail
+   */
+  async syncPull(email: string): Promise<any | null> {
+    const key = email.toLowerCase().trim();
+    console.info(`☁️ [Cloud Sync] PULL de: ${key}`);
+    await new Promise(r => setTimeout(r, 1000));
+    return GLOBAL_CLOUD_STORAGE[key] || null;
   },
 
-  async saveReceipt(syncKey: string, receipt: any): Promise<void> {
-    // No Firestore real, isto seria uma sub-coleção
-    console.info(`☁️ [Cloud] Nova fatura guardada na conta ${syncKey}`);
+  /**
+   * Verifica se um utilizador já existe na nuvem
+   */
+  async userExists(email: string): Promise<boolean> {
+    const key = email.toLowerCase().trim();
+    return !!GLOBAL_CLOUD_STORAGE[key];
   }
 };
