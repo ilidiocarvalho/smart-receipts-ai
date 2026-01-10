@@ -21,10 +21,9 @@ const INITIAL_PROFILE: UserContext = {
   goals: []
 };
 
-// Chaves de todas as versões anteriores para migração profunda
 const LEGACY_KEYS = ['v1.0.0', 'smart_receipts_v111_auth', 'smart_receipts_v112_auth'];
-const SESSION_KEY = 'SR_SESSION_V113';
-const APP_VERSION = "1.1.3";
+const SESSION_KEY = 'SR_SESSION_V115';
+const APP_VERSION = "1.1.5";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -42,12 +41,12 @@ const App: React.FC = () => {
     isCloudEnabled: true,
   });
 
-  // 1. Boot: Migração e Recuperação de Sessão
+  const isCloudActive = firebaseService.isUsingCloud();
+
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
       
-      // A. Procurar dados legados em todas as versões possíveis
       let foundLegacy: any = null;
       for (const key of LEGACY_KEYS) {
         const data = localStorage.getItem(key);
@@ -56,7 +55,6 @@ const App: React.FC = () => {
             const parsed = JSON.parse(data);
             if (parsed.history?.length > 0 || parsed.userProfile?.user_name) {
               foundLegacy = parsed;
-              console.log(`📦 Legado detetado na chave: ${key}`);
               break; 
             }
           } catch (e) {}
@@ -64,7 +62,6 @@ const App: React.FC = () => {
       }
       if (foundLegacy) setMigratedData(foundLegacy);
 
-      // B. Verificar Sessão Ativa
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
@@ -83,14 +80,11 @@ const App: React.FC = () => {
     boot();
   }, []);
 
-  // 2. Persistência Cloud Automática (Debounced)
   useEffect(() => {
     if (isInitializing || !state.userProfile.email) return;
 
-    // Atualizar Session Local
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
 
-    // Sincronizar com a "Nuvem"
     if (state.isCloudEnabled) {
       setIsSyncing(true);
       const timer = setTimeout(async () => {
@@ -136,7 +130,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // Migração: Se havia dados legados, eles são "adotados" pela nova conta
       const profile = migratedData?.userProfile 
         ? { ...migratedData.userProfile, email: email.toLowerCase() }
         : { ...INITIAL_PROFILE, email: email.toLowerCase() };
@@ -148,7 +141,6 @@ const App: React.FC = () => {
         chatHistory: migratedData?.chatHistory || []
       }));
 
-      // Limpar legados para não duplicar
       LEGACY_KEYS.forEach(k => localStorage.removeItem(k));
       setMigratedData(null);
       
@@ -202,6 +194,7 @@ const App: React.FC = () => {
             isLoading={state.isLoading} 
             error={state.error} 
             legacyDetected={!!migratedData}
+            isCloudActive={isCloudActive}
             onClearError={() => setState(prev => ({ ...prev, error: null }))}
           />
         )}
@@ -214,13 +207,14 @@ const App: React.FC = () => {
                   <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Olá, {state.userProfile.user_name}! 👋</h2>
                   <div className="flex items-center gap-3">
                     <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                       <i className="fa-solid fa-shield-halved text-indigo-500"></i> {state.userProfile.email}
+                       <i className={`fa-solid ${isCloudActive ? 'fa-cloud' : 'fa-hard-drive'} text-indigo-500`}></i> 
+                       {isCloudActive ? 'Armazenamento Cloud Firestore' : 'Armazenamento Local (Offline)'}
                     </span>
                   </div>
                 </div>
                 <div className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm flex items-center gap-3 transition-all duration-500 ${isSyncing ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white text-emerald-600 border-slate-200'}`}>
                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`}></div>
-                   {isSyncing ? 'Cloud Syncing...' : 'Live Connected'}
+                   {isSyncing ? 'A Guardar...' : isCloudActive ? 'Cloud Online' : 'Local Guardado'}
                 </div>
               </header>
             ) : (
@@ -246,15 +240,14 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Outras Abas (History, Chat, Reports, Settings) */}
         {activeTab === 'history' && <div className="space-y-6 animate-in fade-in duration-500">
-           <h2 className="text-3xl font-black text-slate-900 tracking-tight">O Teu Histórico Global</h2>
+           <h2 className="text-3xl font-black text-slate-900 tracking-tight">O Teu Histórico {isCloudActive ? 'Global' : 'Local'}</h2>
            {state.history.length === 0 ? (
              <div className="bg-white p-24 text-center rounded-[3rem] border border-slate-200 shadow-sm border-dashed">
                <div className="w-24 h-24 bg-slate-50 text-slate-200 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-                 <i className="fa-solid fa-cloud-arrow-up text-4xl"></i>
+                 <i className={`fa-solid ${isCloudActive ? 'fa-cloud-arrow-up' : 'fa-database'} text-4xl`}></i>
                </div>
-               <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">Sem faturas na cloud</p>
+               <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">Sem faturas guardadas</p>
              </div>
            ) : (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -294,7 +287,7 @@ const App: React.FC = () => {
                version={APP_VERSION}
              />
              <button onClick={handleLogout} className="w-full py-6 text-rose-500 font-black text-[10px] uppercase tracking-[0.3em] hover:bg-rose-50 rounded-[1.5rem] transition-all border border-rose-100 flex items-center justify-center gap-3">
-               <i className="fa-solid fa-power-off"></i> Terminar Sessão Global
+               <i className="fa-solid fa-power-off"></i> Terminar Sessão {isCloudActive ? 'Global' : 'Local'}
              </button>
           </div>
         )}
@@ -311,7 +304,7 @@ const App: React.FC = () => {
   );
 };
 
-const AuthScreen = ({ onSignIn, onSignUp, isLoading, error, legacyDetected, onClearError }: any) => {
+const AuthScreen = ({ onSignIn, onSignUp, isLoading, error, legacyDetected, onClearError, isCloudActive }: any) => {
   const [email, setEmail] = useState('');
   const [mode, setMode] = useState<'signin' | 'signup' | null>(null);
   
@@ -341,7 +334,9 @@ const AuthScreen = ({ onSignIn, onSignUp, isLoading, error, legacyDetected, onCl
           </div>
           <div className="space-y-2">
             <h1 className="text-5xl font-black text-slate-900 tracking-tighter">SmartReceipts</h1>
-            <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px]">Cloud Sync Enabled v1.1.3</p>
+            <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px]">
+              {isCloudActive ? 'Cloud Engine Active v1.1.5' : 'Waiting for Cloud Keys...'}
+            </p>
           </div>
           {legacyDetected && (
             <div className="inline-flex items-center gap-3 bg-amber-50 text-amber-700 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-amber-100 shadow-sm animate-bounce">
@@ -352,7 +347,8 @@ const AuthScreen = ({ onSignIn, onSignUp, isLoading, error, legacyDetected, onCl
 
         <div className="space-y-5">
           <button onClick={() => setMode('signin')} className="w-full bg-slate-900 text-white font-black py-7 rounded-3xl hover:bg-black transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-4 active:scale-95 group">
-             <i className="fa-solid fa-fingerprint text-xl group-hover:scale-125 transition-transform"></i> Entrar na Minha Nuvem
+             <i className={`fa-solid ${isCloudActive ? 'fa-fingerprint' : 'fa-circle-notch animate-spin'} text-xl group-hover:scale-125 transition-transform`}></i> 
+             {isCloudActive ? 'Entrar na Minha Nuvem' : 'Sincronizar Localmente'}
           </button>
           <button onClick={() => setMode('signup')} className="w-full bg-white text-slate-900 border-2 border-slate-100 font-black py-7 rounded-3xl hover:border-indigo-600 transition-all flex items-center justify-center gap-4 active:scale-95">
              <i className="fa-solid fa-user-plus text-xl"></i> Criar Novo Cofre
@@ -372,7 +368,7 @@ const AuthScreen = ({ onSignIn, onSignUp, isLoading, error, legacyDetected, onCl
         <div className="text-center space-y-4">
           <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-none">{mode === 'signin' ? 'Sincronizar' : 'Novo Registo'}</h2>
           <p className="text-slate-400 text-sm font-bold leading-relaxed opacity-80 uppercase tracking-widest text-[10px]">
-            {mode === 'signin' ? 'Acede ao teu histórico de qualquer lugar.' : 'Os teus dados estarão sempre seguros e acessíveis.'}
+            {!isCloudActive ? '⚠️ Nota: Sem chaves Vercel, o login será apenas local.' : (mode === 'signin' ? 'Acede ao teu histórico de qualquer lugar.' : 'Os teus dados estarão sempre seguros e acessíveis.')}
           </p>
         </div>
 

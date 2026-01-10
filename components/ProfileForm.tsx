@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserContext, AppState } from '../types';
+import { firebaseService } from '../services/firebaseService';
 
 interface ProfileFormProps {
   profile: UserContext;
@@ -22,6 +23,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
   version
 }) => {
   const [formData, setFormData] = useState(profile);
+  const isCloudActive = firebaseService.isUsingCloud();
 
   useEffect(() => {
     setFormData(profile);
@@ -34,25 +36,32 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
       return;
     }
     onUpdate(formData);
-    alert("Perfil guardado com sucesso na Cloud!");
+    alert(isCloudActive ? "Perfil guardado com sucesso na Cloud!" : "Perfil guardado localmente (Cloud não configurada).");
   };
 
   return (
     <div className="space-y-6">
       {/* Cloud Account Header */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
-        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center text-3xl shrink-0 shadow-inner">
-          <i className="fa-solid fa-cloud-bolt"></i>
+        <div className={`w-20 h-20 ${isCloudActive ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'} rounded-3xl flex items-center justify-center text-3xl shrink-0 shadow-inner transition-colors`}>
+          <i className={`fa-solid ${isCloudActive ? 'fa-cloud-bolt' : 'fa-database'}`}></i>
         </div>
         <div className="text-center md:text-left z-10">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
-             <h3 className="text-xl font-black text-slate-900 tracking-tight">Sessão Sincronizada</h3>
-             <span className="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1 self-center md:self-auto">
-               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> Online
+             <h3 className="text-xl font-black text-slate-900 tracking-tight">
+               {isCloudActive ? 'Sessão Sincronizada' : 'Sessão Local'}
+             </h3>
+             <span className={`${isCloudActive ? 'bg-emerald-500' : 'bg-slate-400'} text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1 self-center md:self-auto`}>
+               <span className={`w-1.5 h-1.5 bg-white rounded-full ${isCloudActive ? 'animate-pulse' : ''}`}></span> 
+               {isCloudActive ? 'Online' : 'Offline'}
              </span>
           </div>
           <p className="text-base font-bold text-indigo-600 mt-1">{profile.email}</p>
-          <p className="text-xs text-slate-400 mt-2 leading-relaxed">O SmartReceipts AI está a monitorizar e a guardar o teu histórico permanentemente na nuvem.</p>
+          <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+            {isCloudActive 
+              ? 'O SmartReceipts AI está a sincronizar o teu histórico permanentemente no Firebase.' 
+              : 'As chaves da Cloud não foram detetadas. Os teus dados estão apenas neste dispositivo.'}
+          </p>
         </div>
         
         {/* Background Accent */}
@@ -67,7 +76,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Definições da Tua Identidade</h4>
            <div className="flex items-center gap-2">
               <span className="text-[9px] font-bold text-slate-400 uppercase">Cloud Push:</span>
-              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+              <div className={`w-2 h-2 rounded-full ${isCloudActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
            </div>
         </div>
         
@@ -124,13 +133,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           </div>
 
           <button type="submit" className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-black transition-all shadow-2xl shadow-slate-200 flex items-center justify-center gap-3">
-            <i className="fa-solid fa-cloud-arrow-up"></i> Atualizar e Sincronizar Agora
+            <i className={`fa-solid ${isCloudActive ? 'fa-cloud-arrow-up' : 'fa-floppy-disk'}`}></i> 
+            {isCloudActive ? 'Atualizar e Sincronizar Agora' : 'Guardar Alterações (Local)'}
           </button>
         </form>
       </div>
 
       <div className="flex items-center justify-between px-8 py-4 bg-slate-100/50 rounded-2xl">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Build v{version} • Cloud Engine 1.1</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Build v{version} • {isCloudActive ? 'Cloud Engine 1.2' : 'Standalone Mode'}</p>
           <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600">
              <i className="fa-solid fa-lock"></i> 
              Encriptação de Ponta-a-Ponta

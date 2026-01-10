@@ -13,13 +13,18 @@ const firebaseConfig = {
 };
 
 // Inicializar Firebase apenas se as chaves existirem
-const isFirebaseConfigured = !!firebaseConfig.apiKey;
+export const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== '';
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 const db = app ? getFirestore(app) : null;
 
 const LOCAL_FALLBACK_KEY = 'SR_MOCK_CLOUD_FALLBACK';
 
 export const firebaseService = {
+  /**
+   * Indica se estamos a usar a Cloud Real
+   */
+  isUsingCloud: () => isFirebaseConfigured,
+
   /**
    * Grava dados no Firestore Real. Se não houver chaves, avisa e usa local.
    */
@@ -90,8 +95,6 @@ export const firebaseService = {
   },
 
   async uploadImage(base64: string): Promise<string> {
-    // Por agora mantemos o base64 ou link simulado. 
-    // Numa fase seguinte podemos ligar o Firebase Storage.
     return `data:image/jpeg;base64,${base64}`;
   }
 };
