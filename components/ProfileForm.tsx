@@ -9,6 +9,7 @@ interface ProfileFormProps {
   fullHistory: any[];
   isCloudEnabled: boolean;
   onToggleCloud: () => void;
+  version: string;
 }
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ 
@@ -17,7 +18,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
   onImportData, 
   fullHistory,
   isCloudEnabled,
-  onToggleCloud 
+  onToggleCloud,
+  version
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(profile);
@@ -229,6 +231,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
             </label>
           </div>
         </div>
+      </div>
+
+      {/* Footer Version */}
+      <div className="text-center py-4">
+        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
+          SmartReceipts AI • Build {version}
+        </p>
       </div>
     </div>
   );

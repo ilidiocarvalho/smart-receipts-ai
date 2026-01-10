@@ -15,10 +15,12 @@ const INITIAL_PROFILE: UserContext = {
   user_name: "Bruno",
   dietary_regime: "Ovo-Lacto Vegetariano",
   monthly_budget: 280.00,
-  current_month_spend: 150.00,
+  current_month_spend: 0.00, // Agora começa a zero para novos utilizadores
   family_context: "Filho de 8 anos a cada 2 weeks",
   goals: ["Reduzir processados", "Evitar compras diárias", "Economizar 10%"]
 };
+
+const APP_VERSION = "1.0.4";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -214,6 +216,7 @@ const App: React.FC = () => {
               fullHistory={state.history}
               isCloudEnabled={state.isCloudEnabled}
               onToggleCloud={toggleCloud}
+              version={APP_VERSION}
             />
           </div>
         )}
