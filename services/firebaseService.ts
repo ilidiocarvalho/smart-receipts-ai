@@ -1,11 +1,20 @@
 
 /**
  * FIREBASE INTEGRATION SERVICE (PROD SIMULATION)
- * Sincronização centralizada baseada em E-mail.
+ * Sincronização centralizada baseada em E-mail com persistência simulada.
  */
 
-// Simulação de base de dados global na Cloud (em memória do runtime)
-const GLOBAL_CLOUD_STORAGE: Record<string, any> = {};
+const CLOUD_STORAGE_KEY = 'SMART_RECEIPTS_MOCK_CLOUD_DB';
+
+// Auxiliar para ler/escrever na "Nuvem" simulada (localStorage secundário)
+const getCloudDB = (): Record<string, any> => {
+  const db = localStorage.getItem(CLOUD_STORAGE_KEY);
+  return db ? JSON.parse(db) : {};
+};
+
+const saveCloudDB = (db: Record<string, any>) => {
+  localStorage.setItem(CLOUD_STORAGE_KEY, JSON.stringify(db));
+};
 
 export const firebaseService = {
   async uploadImage(base64: string): Promise<string> {
@@ -14,30 +23,41 @@ export const firebaseService = {
   },
 
   /**
-   * Guarda os dados completos do utilizador associados ao e-mail
+   * PUSH: Envia dados locais para a Nuvem
    */
   async syncPush(email: string, data: any): Promise<void> {
     const key = email.toLowerCase().trim();
-    console.info(`☁️ [Cloud Sync] PUSH para: ${key}`);
-    GLOBAL_CLOUD_STORAGE[key] = JSON.parse(JSON.stringify(data));
+    if (!key) return;
+    
+    const db = getCloudDB();
+    db[key] = JSON.parse(JSON.stringify(data));
+    saveCloudDB(db);
+    
+    console.info(`☁️ [Cloud Sync] PUSH concluído para: ${key}`);
     await new Promise(r => setTimeout(r, 400));
   },
 
   /**
-   * Recupera os dados associados a um e-mail
+   * PULL: Recupera dados da Nuvem
    */
   async syncPull(email: string): Promise<any | null> {
     const key = email.toLowerCase().trim();
-    console.info(`☁️ [Cloud Sync] PULL de: ${key}`);
-    await new Promise(r => setTimeout(r, 1000));
-    return GLOBAL_CLOUD_STORAGE[key] || null;
+    if (!key) return null;
+
+    const db = getCloudDB();
+    const userData = db[key];
+    
+    console.info(`☁️ [Cloud Sync] PULL ${userData ? 'SUCESSO' : 'VAZIO'} para: ${key}`);
+    await new Promise(r => setTimeout(r, 800));
+    return userData || null;
   },
 
   /**
-   * Verifica se um utilizador já existe na nuvem
+   * Check: Verifica existência de conta
    */
   async userExists(email: string): Promise<boolean> {
     const key = email.toLowerCase().trim();
-    return !!GLOBAL_CLOUD_STORAGE[key];
+    const db = getCloudDB();
+    return !!db[key];
   }
 };
