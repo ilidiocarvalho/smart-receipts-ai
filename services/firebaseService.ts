@@ -17,6 +17,19 @@ const db = app ? getFirestore(app) : null;
 
 const LOCAL_FALLBACK_KEY = 'SR_MOCK_CLOUD_FALLBACK';
 
+/**
+ * Helper para processar os dados vindos do Firestore
+ * v1.2.1: Garante que se o 'role' estiver na raiz, ele é movido para dentro do userProfile
+ */
+const processCloudData = (data: any) => {
+  if (!data) return null;
+  const processed = { ...data };
+  if (processed.role && processed.userProfile) {
+    processed.userProfile.role = processed.role;
+  }
+  return processed;
+};
+
 export const firebaseService = {
   isUsingCloud: () => isFirebaseConfigured,
 
@@ -33,10 +46,18 @@ export const firebaseService = {
     }
 
     try {
-      await setDoc(doc(db, "users", key), {
+      // v1.2.1: Ao gravar, também garantimos que o role atual do perfil vai para a raiz
+      // para facilitar a visualização no Firebase Console e manter consistência
+      const payload = {
         ...data,
         updatedAt: new Date().toISOString()
-      });
+      };
+      
+      if (data.userProfile?.role) {
+        payload.role = data.userProfile.role;
+      }
+
+      await setDoc(doc(db, "users", key), payload);
     } catch (error) {
       console.error("❌ Erro ao sincronizar com Firestore:", error);
       throw error;
@@ -49,13 +70,13 @@ export const firebaseService = {
 
     if (!db) {
       const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
-      return mock[key] || null;
+      return processCloudData(mock[key]) || null;
     }
 
     try {
       const docSnap = await getDoc(doc(db, "users", key));
       if (docSnap.exists()) {
-        return docSnap.data();
+        return processCloudData(docSnap.data());
       }
       return null;
     } catch (error) {
@@ -78,16 +99,19 @@ export const firebaseService = {
   },
 
   /**
-   * NOVO v1.1.9: Lista todos os utilizadores (Apenas para uso Admin)
+   * NOVO v1.1.9 / v1.2.1: Lista todos os utilizadores (Apenas para uso Admin)
    */
   async listAllUsers(): Promise<any[]> {
     if (!db) {
       const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
-      return Object.values(mock).map((m: any) => m.userProfile);
+      return Object.values(mock).map((m: any) => processCloudData(m)?.userProfile);
     }
     try {
       const querySnapshot = await getDocs(collection(db, "users"));
-      return querySnapshot.docs.map(doc => doc.data().userProfile);
+      return querySnapshot.docs.map(doc => {
+        const data = processCloudData(doc.data());
+        return data.userProfile;
+      });
     } catch (error) {
       console.error("Erro ao listar todos os utilizadores:", error);
       return [];

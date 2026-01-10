@@ -28,7 +28,7 @@ const INITIAL_PROFILE: UserContext = {
 };
 
 const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.2.1";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -48,8 +48,8 @@ const App: React.FC = () => {
 
   const isCloudActive = firebaseService.isUsingCloud();
 
-  // v1.2.0: Acesso Admin baseado exclusivamente no papel ('role') definido na Cloud
-  const canAccessAdmin = state.userProfile.role === 'owner';
+  // v1.2.1: Acesso Admin robusto (verifica perfil e raiz do estado)
+  const canAccessAdmin = state.userProfile.role === 'owner' || (state as any).role === 'owner';
 
   useEffect(() => {
     const boot = async () => {
