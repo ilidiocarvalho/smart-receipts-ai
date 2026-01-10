@@ -6,13 +6,13 @@ interface HeaderProps {
   activeTab: ViewTab;
   onTabChange: (tab: ViewTab) => void;
   isSyncing?: boolean;
+  isAdmin?: boolean; // v1.1.9
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = false }) => {
+const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = false, isAdmin = false }) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Branding */}
         <div 
           className="flex items-center gap-3 cursor-pointer group" 
           onClick={() => onTabChange('dashboard')}
@@ -26,15 +26,16 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
           </div>
         </div>
         
-        {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
           <NavBtn label="Home" icon="fa-house" active={activeTab === 'dashboard'} onClick={() => onTabChange('dashboard')} />
           <NavBtn label="Histórico" icon="fa-clock" active={activeTab === 'history'} onClick={() => onTabChange('history')} />
           <NavBtn label="Coach IA" icon="fa-robot" active={activeTab === 'chat'} onClick={() => onTabChange('chat')} />
           <NavBtn label="Relatórios" icon="fa-chart-pie" active={activeTab === 'reports'} onClick={() => onTabChange('reports')} />
+          {isAdmin && (
+            <NavBtn label="Admin" icon="fa-shield-halved" active={activeTab === 'admin'} onClick={() => onTabChange('admin')} />
+          )}
         </nav>
 
-        {/* Sync & User Status */}
         <div className="flex items-center gap-4">
           <div className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-colors ${isSyncing ? 'bg-amber-50' : 'bg-slate-50'}`}>
             <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></div>

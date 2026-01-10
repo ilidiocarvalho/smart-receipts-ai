@@ -1,25 +1,26 @@
 
-export type ViewTab = 'dashboard' | 'history' | 'chat' | 'reports' | 'settings';
+export type ViewTab = 'dashboard' | 'history' | 'chat' | 'reports' | 'settings' | 'admin';
 
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
 }
 
-export type AccountStatus = 'trial' | 'active' | 'expired';
+export type AccountStatus = 'trial' | 'active' | 'expired' | 'admin';
+export type UserRole = 'user' | 'owner';
 
 export interface UserContext {
   user_name: string;
-  email: string; // Identificador único universal
+  email: string;
   dietary_regime: string;
   monthly_budget: number;
   current_month_spend: number;
   family_context: string;
   goals: string[];
-  // Novos campos para robustez de negócio v1.1.8
   account_status: AccountStatus;
   promo_code?: string;
   joined_at: string;
+  role?: UserRole; // v1.1.9
 }
 
 export interface ReceiptItem {

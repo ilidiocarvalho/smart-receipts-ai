@@ -7,10 +7,12 @@ import AuthScreen from './components/AuthScreen';
 import ProfileForm from './components/ProfileForm';
 import ReportsView from './components/ReportsView';
 import ChatAssistant from './components/ChatAssistant';
+import AdminDashboard from './components/AdminDashboard'; // v1.1.9
 import BottomNav from './components/BottomNav';
 import { UserContext, AppState, ReceiptData, ViewTab } from './types';
 import { processReceipt } from './services/geminiService';
 import { firebaseService } from './services/firebaseService';
+import { accessService } from './services/accessService'; // v1.1.9
 
 const INITIAL_PROFILE: UserContext = {
   user_name: "", 
@@ -21,13 +23,12 @@ const INITIAL_PROFILE: UserContext = {
   family_context: "",
   goals: [],
   account_status: 'trial',
-  joined_at: new Date().toISOString()
+  joined_at: new Date().toISOString(),
+  role: 'user'
 };
 
-const VALID_PROMOS = ['BRUNO_VIP', 'PROMO2025', 'MASTER_KEY', 'BETA_TESTER'];
-const LEGACY_KEYS = ['v1.0.0', 'smart_receipts_v111_auth', 'smart_receipts_v112_auth'];
 const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.1.8";
+const APP_VERSION = "1.1.9";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -47,25 +48,13 @@ const App: React.FC = () => {
 
   const isCloudActive = firebaseService.isUsingCloud();
 
+  // Detetar se o utilizador é Admin
+  const canAccessAdmin = state.userProfile.role === 'owner' || accessService.isAdmin(state.userProfile.email);
+
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
       
-      let foundLegacy: any = null;
-      for (const key of LEGACY_KEYS) {
-        const data = localStorage.getItem(key);
-        if (data) {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.history?.length > 0 || parsed.userProfile?.user_name) {
-              foundLegacy = parsed;
-              break; 
-            }
-          } catch (e) {}
-        }
-      }
-      if (foundLegacy) setMigratedData(foundLegacy);
-
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
@@ -128,8 +117,9 @@ const App: React.FC = () => {
   const handleSignUp = async (email: string, promoCode?: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
-    // Validação de Promo Code (v1.1.8 Gate)
-    if (!VALID_PROMOS.includes(promoCode || '')) {
+    // Validar via AccessService (v1.1.9)
+    const access = accessService.validateCode(promoCode || '');
+    if (!access) {
       setState(prev => ({ ...prev, error: "INVALID_PROMO", isLoading: false }));
       return;
     }
@@ -141,21 +131,22 @@ const App: React.FC = () => {
         return;
       }
 
-      const profile = migratedData?.userProfile 
-        ? { ...migratedData.userProfile, email: email.toLowerCase(), promo_code: promoCode, account_status: 'active' as const }
-        : { ...INITIAL_PROFILE, email: email.toLowerCase(), promo_code: promoCode, account_status: 'active' as const };
+      const profile: UserContext = {
+        ...INITIAL_PROFILE,
+        email: email.toLowerCase(),
+        promo_code: promoCode?.toUpperCase(),
+        account_status: access.status,
+        role: access.role,
+        joined_at: new Date().toISOString()
+      };
       
       setState(prev => ({
         ...prev,
         userProfile: profile,
-        history: migratedData?.history || [],
-        chatHistory: migratedData?.chatHistory || [],
         isLoading: false,
         error: null
       }));
 
-      LEGACY_KEYS.forEach(k => localStorage.removeItem(k));
-      setMigratedData(null);
       setActiveTab('settings');
     } catch (err) {
       setState(prev => ({ ...prev, error: "Erro ao criar conta.", isLoading: false }));
@@ -172,7 +163,6 @@ const App: React.FC = () => {
   const handleUpload = async (base64: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
-      // processReceipt agora trata compressão e retries internamente (v1.1.8)
       const aiResult = await processReceipt(base64, state.userProfile);
       const newReceipt: ReceiptData = { ...aiResult, id: crypto.randomUUID() };
       setState(prev => ({
@@ -182,7 +172,7 @@ const App: React.FC = () => {
         isLoading: false
       }));
     } catch (err: any) {
-      setState(prev => ({ ...prev, isLoading: false, error: "Erro ao processar imagem. Tente uma foto mais nítida." }));
+      setState(prev => ({ ...prev, isLoading: false, error: "Erro ao processar imagem." }));
     }
   };
 
@@ -197,7 +187,12 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-8 bg-slate-50 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <Header activeTab={activeTab} onTabChange={setActiveTab} isSyncing={isSyncing} />
+      <Header 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        isSyncing={isSyncing} 
+        isAdmin={canAccessAdmin} // Passar permissão para o header
+      />
       
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 md:py-8">
         {!state.userProfile.email ? (
@@ -249,6 +244,8 @@ const App: React.FC = () => {
 
             {activeTab === 'reports' && <ReportsView history={state.history} />}
             
+            {activeTab === 'admin' && canAccessAdmin && <AdminDashboard />}
+
             {activeTab === 'settings' && (
               <div className="space-y-6 animate-in fade-in">
                  <ProfileForm 
