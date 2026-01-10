@@ -99,19 +99,17 @@ export const firebaseService = {
   },
 
   /**
-   * NOVO v1.1.9 / v1.2.1: Lista todos os utilizadores (Apenas para uso Admin)
+   * v1.1.9 / v1.2.1 / v1.2.2: Lista todos os documentos de utilizadores
+   * Retorna o objeto completo processado para permitir estatísticas globais.
    */
   async listAllUsers(): Promise<any[]> {
     if (!db) {
       const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
-      return Object.values(mock).map((m: any) => processCloudData(m)?.userProfile);
+      return Object.values(mock).map((m: any) => processCloudData(m));
     }
     try {
       const querySnapshot = await getDocs(collection(db, "users"));
-      return querySnapshot.docs.map(doc => {
-        const data = processCloudData(doc.data());
-        return data.userProfile;
-      });
+      return querySnapshot.docs.map(doc => processCloudData(doc.data()));
     } catch (error) {
       console.error("Erro ao listar todos os utilizadores:", error);
       return [];

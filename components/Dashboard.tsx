@@ -28,6 +28,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   onUpload,
   onNavigateToSettings
 }) => {
+  const isOwner = userProfile.role === 'owner';
+
   if (!userProfile.user_name) {
     return (
       <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-indigo-200/50 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group">
@@ -45,7 +47,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Olá, {userProfile.user_name}! 👋</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Olá, {userProfile.user_name}! 👋</h2>
+            {isOwner && (
+              <span className="bg-indigo-950 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center gap-1.5 border border-indigo-800">
+                <i className="fa-solid fa-crown text-amber-400"></i> Owner
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                <i className={`fa-solid ${isCloudActive ? 'fa-cloud' : 'fa-hard-drive'} text-indigo-500`}></i> 
