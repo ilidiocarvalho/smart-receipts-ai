@@ -38,87 +38,39 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
     setIsOpen(false);
   };
 
-  const addGoal = () => {
-    setFormData(prev => ({ ...prev, goals: [...prev.goals, ''] }));
-  };
-
-  const updateGoal = (index: number, val: string) => {
-    const newGoals = [...formData.goals];
-    newGoals[index] = val;
-    setFormData(prev => ({ ...prev, goals: newGoals }));
-  };
-
-  const removeGoal = (index: number) => {
-    setFormData(prev => ({ ...prev, goals: prev.goals.filter((_, i) => i !== index) }));
-  };
-
-  const handleExport = () => {
-    const dataStr = JSON.stringify({ userProfile: profile, history: fullHistory }, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = `smart_receipts_backup_${new Date().toISOString().split('T')[0]}.json`;
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (confirm("Isto irá substituir o histórico atual. Continuar?")) {
-          onImportData(json);
-        }
-      } catch (err) {
-        alert("Ficheiro inválido.");
-      }
-    };
-    reader.readAsText(file);
+  const copyKey = () => {
+    if (profile.syncKey) {
+      navigator.clipboard.writeText(profile.syncKey);
+      alert("Chave copiada! Usa-a no telemóvel para entrar neste perfil.");
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Welcome Message for Empty Profile */}
-      {!profile.user_name && (
-        <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6 rounded-2xl shadow-xl animate-in zoom-in duration-300">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-              <i className="fa-solid fa-rocket text-xl"></i>
-            </div>
-            <h3 className="text-xl font-bold">Configuração Inicial</h3>
+      {/* Cloud Identity Card */}
+      <div className="bg-white rounded-3xl border border-indigo-100 p-8 shadow-sm relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <h3 className="font-black text-slate-900 text-lg tracking-tight">Identidade de Nuvem</h3>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-sm">
+              Esta é a tua chave de acesso. Guarda-a para poderes aceder aos teus dados em qualquer browser ou telemóvel.
+            </p>
           </div>
-          <p className="text-sm opacity-90 leading-relaxed">Personaliza a tua experiência! Diz-nos o teu nome e orçamento para que o Coach IA possa dar-te dicas reais.</p>
+          
+          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center justify-between gap-4 group cursor-pointer" onClick={copyKey}>
+            <div className="space-y-1">
+               <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">A Tua Chave Única</span>
+               <p className="text-xl font-mono font-black text-indigo-700">{profile.syncKey || 'GERAR NO PERFIL'}</p>
+            </div>
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-500 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <i className="fa-solid fa-copy"></i>
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Cloud Sync Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isCloudEnabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
-              <i className="fa-solid fa-cloud-arrow-up"></i>
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-800 text-sm">Cloud Sync & Backup</h4>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sincronização com Firebase</p>
-            </div>
-          </div>
-          <button 
-            onClick={onToggleCloud}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ring-2 ring-offset-2 ${isCloudEnabled ? 'bg-indigo-600 ring-indigo-50' : 'bg-slate-200 ring-slate-50'}`}
-          >
-            <span className={`${isCloudEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
-          </button>
+        
+        <div className="absolute top-[-40px] right-[-40px] text-indigo-50/50">
+          <i className="fa-solid fa-cloud text-[140px]"></i>
         </div>
-        {isCloudEnabled && (
-          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex gap-3 text-emerald-700 items-start animate-in fade-in slide-in-from-top-2">
-            <i className="fa-solid fa-check-circle mt-0.5"></i>
-            <p className="text-[11px] leading-tight font-medium">As tuas faturas e dados de perfil estão a ser guardados de forma segura na tua conta Firebase.</p>
-          </div>
-        )}
       </div>
 
       {/* Profile Section */}
@@ -130,32 +82,32 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           <div className="flex items-center gap-3">
             <i className={`fa-solid fa-user-circle ${profile.user_name ? 'text-indigo-500' : 'text-slate-300'} text-xl`}></i>
             <span className="font-semibold text-slate-800">
-              {profile.user_name ? `Perfil de ${profile.user_name}` : 'Identidade & Orçamento'}
+              {profile.user_name ? `Perfil de ${profile.user_name}` : 'Configuração do Perfil'}
             </span>
           </div>
-          <i className={`fa-solid fa-chevron-${isOpen ? 'up' : 'down'} text-slate-400`}></i>
+          <i className={`fa-solid fa-chevron-${isOpen ? 'up' : 'down'} text-slate-400`}`} />
         </button>
 
         {isOpen && (
-          <form onSubmit={handleSubmit} className="p-6 border-t border-slate-100 space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 border-t border-slate-100 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">O Teu Nome</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">O Teu Nome</label>
                 <input 
                   type="text" 
                   required
                   value={formData.user_name}
                   placeholder="Ex: Bruno"
                   onChange={e => setFormData({ ...formData, user_name: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Regime Alimentar</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Dieta Principal</label>
                 <select 
                   value={formData.dietary_regime}
                   onChange={e => setFormData({ ...formData, dietary_regime: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 outline-none"
                 >
                   <option>None / Mixed</option>
                   <option>Ovo-Lacto Vegetariano</option>
@@ -169,76 +121,39 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Orçamento Mensal (€)</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Budget Mensal (€)</label>
                 <input 
                   type="number" 
                   value={formData.monthly_budget || ''}
-                  placeholder="Ex: 300"
                   onChange={e => setFormData({ ...formData, monthly_budget: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Contexto Familiar</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Família</label>
                 <input 
                   type="text" 
                   value={formData.family_context}
-                  placeholder="Ex: Vive com parceiro"
+                  placeholder="Ex: 2 adultos, 1 criança"
                   onChange={e => setFormData({ ...formData, family_context: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 outline-none"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Os Teus Objetivos</label>
-              <div className="space-y-2">
-                {formData.goals.map((goal, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={goal}
-                      onChange={e => updateGoal(idx, e.target.value)}
-                      className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                    />
-                    <button type="button" onClick={() => removeGoal(idx)} className="text-rose-500 px-2 hover:bg-rose-50 rounded-lg transition-colors">
-                      <i className="fa-solid fa-trash-can"></i>
-                    </button>
-                  </div>
-                ))}
-                <button type="button" onClick={addGoal} className="text-xs text-indigo-600 font-bold hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">+ Adicionar Objetivo</button>
-              </div>
-            </div>
-
-            <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 flex items-center justify-center gap-2">
-              <i className="fa-solid fa-floppy-disk"></i> Guardar Perfil
+            <button type="submit" className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 flex items-center justify-center gap-2">
+              <i className="fa-solid fa-cloud-arrow-up"></i> {profile.user_name ? 'Guardar e Sincronizar' : 'Criar e Sincronizar'}
             </button>
           </form>
         )}
       </div>
 
-      {/* Tools Section */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
-        <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Gestão de Dados Local</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button onClick={handleExport} className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">
-              <i className="fa-solid fa-file-export text-indigo-500"></i> Exportar JSON
-            </button>
-            <label className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-xl text-sm font-bold hover:bg-slate-50 cursor-pointer transition-colors">
-              <i className="fa-solid fa-file-import text-indigo-500"></i> Importar JSON
-              <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-            </label>
+      <div className="pt-4 flex items-center justify-between px-4">
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Versão Build {version}</p>
+          <div className="flex items-center gap-2 text-[10px] font-black text-slate-400">
+             <i className="fa-solid fa-shield-halved text-emerald-500"></i> 
+             Encriptação Ativa
           </div>
-        </div>
-        
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Build {version}</p>
-          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-             <i className="fa-solid fa-lock text-emerald-500"></i> 
-             Encriptação Local Ativa
-          </div>
-        </div>
       </div>
     </div>
   );

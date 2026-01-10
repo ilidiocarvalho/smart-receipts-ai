@@ -13,6 +13,7 @@ export interface UserContext {
   current_month_spend: number;
   family_context: string;
   goals: string[];
+  syncKey?: string; // Chave única para sincronização entre dispositivos
 }
 
 export interface ReceiptItem {
@@ -34,8 +35,8 @@ export interface ReceiptAnalysis {
 }
 
 export interface ReceiptData {
-  id: string; // Unique ID for database
-  imageUrl?: string; // Link to Firebase Storage
+  id: string; 
+  imageUrl?: string; 
   meta: {
     store: string;
     date: string;

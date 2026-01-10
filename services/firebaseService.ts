@@ -1,12 +1,7 @@
 
 /**
- * FIREBASE INTEGRATION SERVICE
- * 
- * To activate:
- * 1. Go to console.firebase.google.com
- * 2. Create a project
- * 3. Add a "Web App"
- * 4. Paste your config here
+ * FIREBASE INTEGRATION SERVICE (PROD SIMULATION)
+ * Em produção real, estes métodos interagem com o Firestore.
  */
 
 export const firebaseConfig = {
@@ -18,25 +13,29 @@ export const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// This is a mock/placeholder service. 
-// It simulates what would happen if you had a real Firebase backend.
+// Mock Database em memória para simular o comportamento da rede
+const MOCK_CLOUD_DB: Record<string, any> = {};
+
 export const firebaseService = {
   async uploadImage(base64: string): Promise<string> {
-    console.info("☁️ [Cloud Sync] Iniciando upload da imagem para o Firebase Storage...");
-    // Simula um atraso de rede
-    await new Promise(r => setTimeout(r, 1200));
-    console.info("✅ [Cloud Sync] Imagem guardada na nuvem com sucesso.");
+    await new Promise(r => setTimeout(r, 800));
     return "https://images.unsplash.com/photo-1540340061722-9293d5163008?auto=format&fit=crop&q=80&w=400";
   },
 
-  async saveReceipt(data: any): Promise<void> {
-    console.info("☁️ [Cloud Sync] A sincronizar dados da fatura com o Firestore...");
-    await new Promise(r => setTimeout(r, 800));
-    console.info("✅ [Cloud Sync] Fatura sincronizada.");
+  async saveUserData(syncKey: string, data: any): Promise<void> {
+    console.info(`☁️ [Cloud] A sincronizar dados para a chave: ${syncKey}`);
+    MOCK_CLOUD_DB[syncKey] = JSON.parse(JSON.stringify(data)); 
+    await new Promise(r => setTimeout(r, 500));
   },
 
-  async fetchHistory(): Promise<any[]> {
-    console.info("☁️ [Cloud Sync] A descarregar histórico remoto...");
-    return [];
+  async fetchUserData(syncKey: string): Promise<any | null> {
+    console.info(`☁️ [Cloud] A procurar dados para a chave: ${syncKey}`);
+    await new Promise(r => setTimeout(r, 1200));
+    return MOCK_CLOUD_DB[syncKey] || null;
+  },
+
+  async saveReceipt(syncKey: string, receipt: any): Promise<void> {
+    // No Firestore real, isto seria uma sub-coleção
+    console.info(`☁️ [Cloud] Nova fatura guardada na conta ${syncKey}`);
   }
 };
