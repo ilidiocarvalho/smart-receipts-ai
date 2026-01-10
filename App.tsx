@@ -15,12 +15,14 @@ const INITIAL_PROFILE: UserContext = {
   user_name: "Bruno",
   dietary_regime: "Ovo-Lacto Vegetariano",
   monthly_budget: 280.00,
-  current_month_spend: 0.00, // Agora começa a zero para novos utilizadores
+  current_month_spend: 0.00, 
   family_context: "Filho de 8 anos a cada 2 weeks",
   goals: ["Reduzir processados", "Evitar compras diárias", "Economizar 10%"]
 };
 
-const APP_VERSION = "1.0.4";
+// Incrementamos para v6 para garantir que o localStorage antigo de demo seja ignorado
+const STORAGE_KEY = 'smart_receipt_state_v6';
+const APP_VERSION = "1.0.5";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -38,7 +40,7 @@ const App: React.FC = () => {
   const isKeyMissing = !process.env.API_KEY || process.env.API_KEY === '';
 
   useEffect(() => {
-    const saved = localStorage.getItem('smart_receipt_state_v5');
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -52,7 +54,7 @@ const App: React.FC = () => {
   useEffect(() => {
     setIsSyncing(true);
     const timeout = setTimeout(() => {
-      localStorage.setItem('smart_receipt_state_v5', JSON.stringify({
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
         userProfile: state.userProfile,
         history: state.history,
         chatHistory: state.chatHistory,
