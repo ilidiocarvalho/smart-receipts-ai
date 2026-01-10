@@ -1,0 +1,7 @@
+{
+  "name": "Smart Receipts AI",
+  "description": "An intelligent personal finance and nutrition assistant that extracts data from grocery receipts and provides personalized coaching based on your goals.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
