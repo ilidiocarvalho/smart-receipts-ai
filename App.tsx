@@ -7,12 +7,12 @@ import AuthScreen from './components/AuthScreen';
 import ProfileForm from './components/ProfileForm';
 import ReportsView from './components/ReportsView';
 import ChatAssistant from './components/ChatAssistant';
-import AdminDashboard from './components/AdminDashboard'; // v1.1.9
+import AdminDashboard from './components/AdminDashboard';
 import BottomNav from './components/BottomNav';
 import { UserContext, AppState, ReceiptData, ViewTab } from './types';
 import { processReceipt } from './services/geminiService';
 import { firebaseService } from './services/firebaseService';
-import { accessService } from './services/accessService'; // v1.1.9
+import { accessService } from './services/accessService';
 
 const INITIAL_PROFILE: UserContext = {
   user_name: "", 
@@ -28,7 +28,7 @@ const INITIAL_PROFILE: UserContext = {
 };
 
 const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.1.9";
+const APP_VERSION = "1.2.0";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -48,8 +48,8 @@ const App: React.FC = () => {
 
   const isCloudActive = firebaseService.isUsingCloud();
 
-  // Detetar se o utilizador é Admin
-  const canAccessAdmin = state.userProfile.role === 'owner' || accessService.isAdmin(state.userProfile.email);
+  // v1.2.0: Acesso Admin baseado exclusivamente no papel ('role') definido na Cloud
+  const canAccessAdmin = state.userProfile.role === 'owner';
 
   useEffect(() => {
     const boot = async () => {
@@ -117,7 +117,6 @@ const App: React.FC = () => {
   const handleSignUp = async (email: string, promoCode?: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
-    // Validar via AccessService (v1.1.9)
     const access = accessService.validateCode(promoCode || '');
     if (!access) {
       setState(prev => ({ ...prev, error: "INVALID_PROMO", isLoading: false }));
@@ -191,7 +190,7 @@ const App: React.FC = () => {
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
         isSyncing={isSyncing} 
-        isAdmin={canAccessAdmin} // Passar permissão para o header
+        isAdmin={canAccessAdmin}
       />
       
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 md:py-8">

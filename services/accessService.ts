@@ -3,10 +3,10 @@ import { AccountStatus, UserRole } from "../types";
 
 /**
  * Definição dos códigos válidos e as suas propriedades.
- * No futuro, isto pode ser movido para uma coleção no Firestore.
+ * Versão 1.2.0: Removidos códigos que atribuem privilégios de Admin diretamente.
+ * O privilégio 'owner' deve ser atribuído manualmente na Consola do Firebase.
  */
 const ACCESS_KEYS: Record<string, { status: AccountStatus; role: UserRole; label: string }> = {
-  "BRUNO_MASTER": { status: "admin", role: "owner", label: "Sistema Master" },
   "BRUNO_VIP": { status: "active", role: "user", label: "VIP Bruno" },
   "PROMO2025": { status: "active", role: "user", label: "Campanha 2025" },
   "BETA_TESTER": { status: "trial", role: "user", label: "Beta Test Group" },
@@ -27,14 +27,5 @@ export const accessService = {
       isValid: true,
       ...config
     };
-  },
-
-  /**
-   * Verifica se um email específico tem privilégios de Admin
-   * Podes adicionar aqui o teu email pessoal para segurança extra.
-   */
-  isAdmin: (email: string) => {
-    const admins = ["bruno@admin.com", "teu-email@gmail.com"]; // Configura aqui
-    return admins.includes(email.toLowerCase());
   }
 };
