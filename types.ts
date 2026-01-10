@@ -6,6 +6,8 @@ export interface ChatMessage {
   text: string;
 }
 
+export type AccountStatus = 'trial' | 'active' | 'expired';
+
 export interface UserContext {
   user_name: string;
   email: string; // Identificador único universal
@@ -14,6 +16,10 @@ export interface UserContext {
   current_month_spend: number;
   family_context: string;
   goals: string[];
+  // Novos campos para robustez de negócio v1.1.8
+  account_status: AccountStatus;
+  promo_code?: string;
+  joined_at: string;
 }
 
 export interface ReceiptItem {
