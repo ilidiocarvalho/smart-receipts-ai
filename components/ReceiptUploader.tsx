@@ -23,9 +23,14 @@ const ReceiptUploader: React.FC<ReceiptUploaderProps> = ({ onUpload, isLoading }
 
   return (
     <div className="relative">
+      {/* 
+        v1.3.0: Added accept images and capture environment 
+        This allows users to choose between taking a photo, library, or files (inc. cloud drives)
+      */}
       <input 
         type="file" 
         accept="image/*" 
+        capture="environment"
         className="hidden" 
         ref={fileInputRef}
         onChange={handleFileChange}
@@ -39,8 +44,8 @@ const ReceiptUploader: React.FC<ReceiptUploaderProps> = ({ onUpload, isLoading }
           <>
             <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
             <div className="text-center">
-              <p className="font-bold text-lg">AI Scanning in progress...</p>
-              <p className="text-indigo-200 text-sm">Extracting items & analyzing nutrition</p>
+              <p className="font-bold text-lg">Analisando com IA...</p>
+              <p className="text-indigo-200 text-sm">Extraindo itens e verificando nutrição</p>
             </div>
           </>
         ) : (
@@ -49,8 +54,8 @@ const ReceiptUploader: React.FC<ReceiptUploaderProps> = ({ onUpload, isLoading }
               <i className="fa-solid fa-camera text-3xl"></i>
             </div>
             <div className="text-center">
-              <p className="font-bold text-xl">Upload Receipt</p>
-              <p className="text-indigo-100">Tap to capture or choose an image</p>
+              <p className="font-bold text-xl">Digitalizar Talão</p>
+              <p className="text-indigo-100">Câmara, Ficheiros ou Drive</p>
             </div>
           </>
         )}

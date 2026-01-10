@@ -9,6 +9,7 @@ import ReportsView from './components/ReportsView';
 import ChatAssistant from './components/ChatAssistant';
 import AdminDashboard from './components/AdminDashboard';
 import BottomNav from './components/BottomNav';
+import ReceiptEditor from './components/ReceiptEditor';
 import { UserContext, AppState, ReceiptData, ViewTab } from './types';
 import { processReceipt } from './services/geminiService';
 import { firebaseService } from './services/firebaseService';
@@ -28,13 +29,14 @@ const INITIAL_PROFILE: UserContext = {
 };
 
 const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.2.2";
+const APP_VERSION = "1.3.0";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [migratedData, setMigratedData] = useState<any>(null);
+  const [draftReceipt, setDraftReceipt] = useState<ReceiptData | null>(null);
   
   const [state, setState] = useState<AppState>({
     userProfile: INITIAL_PROFILE,
@@ -47,8 +49,6 @@ const App: React.FC = () => {
   });
 
   const isCloudActive = firebaseService.isUsingCloud();
-
-  // v1.2.1/v1.2.2: Acesso Admin robusto (verifica perfil e raiz do estado)
   const canAccessAdmin = state.userProfile.role === 'owner' || (state as any).role === 'owner';
 
   useEffect(() => {
@@ -163,16 +163,26 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
       const aiResult = await processReceipt(base64, state.userProfile);
-      const newReceipt: ReceiptData = { ...aiResult, id: crypto.randomUUID() };
-      setState(prev => ({
-        ...prev,
-        lastAnalysis: newReceipt,
-        history: [newReceipt, ...prev.history].slice(0, 50),
-        isLoading: false
-      }));
+      const newDraft: ReceiptData = { 
+        ...aiResult, 
+        id: crypto.randomUUID(),
+        imageUrl: `data:image/jpeg;base64,${base64}` 
+      };
+      setDraftReceipt(newDraft);
+      setState(prev => ({ ...prev, isLoading: false }));
     } catch (err: any) {
       setState(prev => ({ ...prev, isLoading: false, error: "Erro ao processar imagem." }));
     }
+  };
+
+  const handleSaveDraft = (finalReceipt: ReceiptData) => {
+    setState(prev => ({
+      ...prev,
+      lastAnalysis: finalReceipt,
+      history: [finalReceipt, ...prev.history].slice(0, 50)
+    }));
+    setDraftReceipt(null);
+    setActiveTab('dashboard');
   };
 
   if (isInitializing) {
@@ -264,6 +274,15 @@ const App: React.FC = () => {
           </>
         )}
       </main>
+
+      {/* v1.3.0 Receipt Editor Overlay */}
+      {draftReceipt && (
+        <ReceiptEditor 
+          receipt={draftReceipt} 
+          onSave={handleSaveDraft} 
+          onCancel={() => setDraftReceipt(null)}
+        />
+      )}
 
       {state.userProfile.email && (
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />

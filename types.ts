@@ -20,7 +20,7 @@ export interface UserContext {
   account_status: AccountStatus;
   promo_code?: string;
   joined_at: string;
-  role?: UserRole; // v1.1.9
+  role?: UserRole;
 }
 
 export interface ReceiptItem {
@@ -47,6 +47,7 @@ export interface ReceiptData {
   meta: {
     store: string;
     date: string;
+    time: string; // Added v1.3.0
     total_spent: number;
     total_saved: number;
     scan_quality: 'High' | 'Medium' | 'Low';

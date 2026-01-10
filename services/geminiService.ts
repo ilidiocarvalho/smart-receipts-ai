@@ -10,9 +10,6 @@ const getAIClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-/**
- * Redimensiona e comprime uma imagem em base64 para melhorar performance e reduzir custos.
- */
 export async function compressImage(base64Str: string, maxWidth = 1200, quality = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -54,8 +51,6 @@ export async function processReceipt(
 ): Promise<ReceiptData> {
   try {
     const ai = getAIClient();
-    
-    // Comprimir imagem antes do envio (v1.1.8 Robustness)
     const processedImage = await compressImage(base64Image);
 
     const prompt = `
@@ -65,7 +60,7 @@ export async function processReceipt(
       ${JSON.stringify(userContext, null, 2)}
 
       # Core Tasks:
-      1. OCR: Extract store, date, items, prices.
+      1. OCR: Extract store, date (YYYY-MM-DD), time (HH:MM), items, prices.
       2. Normalize: Clean product names (e.g. "P. Queijo" -> "Pão de Queijo").
       3. Categorize: Assign one of (Dairy, Produce, Bakery, Butcher, Pantry, Frozen, Snacks, Beverages, Household, Personal Care, Pets).
       4. Compliance: Check if items fit the ${userContext.dietary_regime} diet.
@@ -90,11 +85,12 @@ export async function processReceipt(
           properties: {
             store: { type: Type.STRING },
             date: { type: Type.STRING },
+            time: { type: Type.STRING },
             total_spent: { type: Type.NUMBER },
             total_saved: { type: Type.NUMBER },
             scan_quality: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
           },
-          required: ["store", "date", "total_spent", "total_saved", "scan_quality"],
+          required: ["store", "date", "time", "total_spent", "total_saved", "scan_quality"],
         },
         items: {
           type: Type.ARRAY,
