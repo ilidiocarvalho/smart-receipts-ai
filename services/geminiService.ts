@@ -1,30 +1,43 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserContext, ReceiptData, ChatMessage } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// A chave é injetada via processo de build ou variáveis de ambiente do Vercel
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY não configurada. Adicione-a às variáveis de ambiente.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export async function processReceipt(
   base64Image: string,
   userContext: UserContext
 ): Promise<ReceiptData> {
+  const ai = getAIClient();
+  
   const prompt = `
     Analyze the provided receipt image and the user's personal context.
     
     # User Context
     ${JSON.stringify(userContext, null, 2)}
 
-    # Goals
-    Extract all items, categorize them, and provide specific health/financial coaching.
-    
-    # Strict Output Requirements:
-    1. Extract Clean Names: Normalize abbreviations.
-    2. Categorize: (Dairy, Produce, Bakery, Butcher, Pantry, Frozen, Snacks, Beverages, Household, Personal Care, Pets).
-    3. Coaching: Supportive message in "coach_message".
+    # Core Tasks:
+    1. OCR: Extract store, date, items, prices.
+    2. Normalize: Clean product names (e.g. "P. Queijo" -> "Pão de Queijo").
+    3. Categorize: Assign one of (Dairy, Produce, Bakery, Butcher, Pantry, Frozen, Snacks, Beverages, Household, Personal Care, Pets).
+    4. Compliance: Check if items fit the ${userContext.dietary_regime} diet.
+    5. Coaching: Provide a supportive message as a personal coach.
+
+    # Strict Output Format:
+    Return a single JSON object.
   `;
 
   const imagePart = {
-    inlineData: { mimeType: "image/jpeg", data: base64Image },
+    inlineData: {
+      mimeType: "image/jpeg",
+      data: base64Image,
+    },
   };
 
   const responseSchema = {
@@ -71,13 +84,20 @@ export async function processReceipt(
     required: ["meta", "items", "analysis", "coach_message"],
   };
 
-  const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+  const response = await ai.models.generateContent({
+    model: "gemini-3-pro-preview",
     contents: [{ parts: [imagePart, { text: prompt }] }],
-    config: { responseMimeType: "application/json", responseSchema: responseSchema },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
+      temperature: 0.1, // Mais determinístico para OCR
+    },
   });
 
-  return JSON.parse(result.text.trim());
+  const text = response.text;
+  if (!text) throw new Error("A IA não retornou dados.");
+  
+  return JSON.parse(text);
 }
 
 export async function chatWithAssistant(
@@ -86,30 +106,35 @@ export async function chatWithAssistant(
   userProfile: UserContext,
   chatLog: ChatMessage[]
 ): Promise<string> {
+  const ai = getAIClient();
+  
   const systemInstruction = `
-    You are a Personal Finance & Nutrition Assistant.
-    You have access to the user's receipt history and profile.
+    You are the "SmartReceipts AI Coach".
+    Your tone is professional, encouraging, and data-driven.
     
-    # History Context
-    ${JSON.stringify(history.map(h => ({ date: h.meta.date, store: h.meta.store, total: h.meta.total_spent, items: h.items.map(i => i.name_clean) })), null, 2)}
-    
-    # User Profile
-    ${JSON.stringify(userProfile, null, 2)}
-    
-    # Rules
-    - Be concise and actionable.
-    - If asked for recipes, suggest them based on items actually found in history.
-    - If asked about spending, calculate totals from the history provided.
-    - Maintain a supportive, coaching tone.
+    # Knowledge Base:
+    - User Profile: ${JSON.stringify(userProfile)}
+    - Recent Shopping History: ${JSON.stringify(history.slice(0, 5).map(h => ({
+        date: h.meta.date,
+        store: h.meta.store,
+        total: h.meta.total_spent,
+        items: h.items.map(i => i.name_clean)
+      })))}
+
+    # Rules:
+    1. Be concise.
+    2. If asked about spending, use the provided history.
+    3. If asked for recipes, only suggest ones that use ingredients found in the history or typical pantry staples.
+    4. Always stay within the context of finance and nutrition.
   `;
 
   const chat = ai.chats.create({
-    model: 'gemini-3-flash-preview',
-    config: { systemInstruction }
+    model: 'gemini-3-pro-preview',
+    config: {
+      systemInstruction,
+    }
   });
 
-  // Reconstruct chat history for Gemini
-  // In a real app we might pass the full chatLog, here we send the new message
-  const result = await chat.sendMessage({ message });
-  return result.text || "I'm sorry, I couldn't process that.";
+  const response = await chat.sendMessage({ message });
+  return response.text || "Desculpe, não consegui processar a sua pergunta.";
 }
