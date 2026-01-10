@@ -7,9 +7,18 @@ interface ProfileFormProps {
   onUpdate: (profile: UserContext) => void;
   onImportData: (data: Partial<AppState>) => void;
   fullHistory: any[];
+  isCloudEnabled: boolean;
+  onToggleCloud: () => void;
 }
 
-const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onUpdate, onImportData, fullHistory }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ 
+  profile, 
+  onUpdate, 
+  onImportData, 
+  fullHistory,
+  isCloudEnabled,
+  onToggleCloud 
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(profile);
 
@@ -168,20 +177,33 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onUpdate, onImportDa
       {/* Cloud & Data Section */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-2">
+          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-4">
             <i className="fa-solid fa-cloud text-indigo-500"></i>
-            Cloud Sync Settings
+            Sync & Security
           </h3>
-          <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
+          <div className={`p-4 rounded-xl border transition-all flex items-center justify-between ${isCloudEnabled ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
             <div className="flex items-center gap-3">
-              <i className="fa-brands fa-google text-indigo-600"></i>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isCloudEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                <i className={`fa-solid ${isCloudEnabled ? 'fa-cloud-check' : 'fa-cloud'}`}></i>
+              </div>
               <div>
-                <p className="text-sm font-bold text-indigo-900">Google Drive / Firebase</p>
-                <p className="text-[10px] text-indigo-600 uppercase font-bold tracking-widest">Connect for cross-device sync</p>
+                <p className={`text-sm font-bold ${isCloudEnabled ? 'text-emerald-900' : 'text-slate-900'}`}>
+                  {isCloudEnabled ? 'Cloud Sync Active' : 'Offline Mode (Local Only)'}
+                </p>
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
+                  {isCloudEnabled ? 'Data backed up to Google Cloud' : 'Data stored on this device only'}
+                </p>
               </div>
             </div>
-            <button className="bg-white text-indigo-600 px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:shadow-md transition">
-              Connect
+            <button 
+              onClick={onToggleCloud}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                isCloudEnabled 
+                  ? 'bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-100' 
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
+            >
+              {isCloudEnabled ? 'Disconnect' : 'Connect Cloud'}
             </button>
           </div>
         </div>
@@ -189,20 +211,20 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onUpdate, onImportDa
         <div className="pt-4 border-t border-slate-100">
           <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-4">
             <i className="fa-solid fa-database text-slate-400"></i>
-            Manual Data Tools
+            Manual Backups
           </h3>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button 
               onClick={handleExport}
-              className="flex-1 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all"
+              className="bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all"
             >
               <i className="fa-solid fa-download text-indigo-500"></i>
-              Export Backup
+              Export JSON
             </button>
             
-            <label className="flex-1 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all cursor-pointer text-center">
+            <label className="bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all cursor-pointer text-center">
               <i className="fa-solid fa-upload text-indigo-500"></i>
-              Import Backup
+              Import JSON
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
           </div>

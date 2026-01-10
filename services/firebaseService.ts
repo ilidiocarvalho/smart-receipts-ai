@@ -18,22 +18,25 @@ export const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// This is a mock/placeholder service that we will fill 
-// once you have your Firebase project set up.
+// This is a mock/placeholder service. 
+// It simulates what would happen if you had a real Firebase backend.
 export const firebaseService = {
   async uploadImage(base64: string): Promise<string> {
-    console.log("Cloud: Uploading image to Storage...");
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 1000));
-    return "https://placeholder.com/receipt-image.jpg";
+    console.info("☁️ [Cloud Sync] Iniciando upload da imagem para o Firebase Storage...");
+    // Simula um atraso de rede
+    await new Promise(r => setTimeout(r, 1200));
+    console.info("✅ [Cloud Sync] Imagem guardada na nuvem com sucesso.");
+    return "https://images.unsplash.com/photo-1540340061722-9293d5163008?auto=format&fit=crop&q=80&w=400";
   },
 
   async saveReceipt(data: any): Promise<void> {
-    console.log("Cloud: Saving analysis to Firestore...");
-    await new Promise(r => setTimeout(r, 500));
+    console.info("☁️ [Cloud Sync] A sincronizar dados da fatura com o Firestore...");
+    await new Promise(r => setTimeout(r, 800));
+    console.info("✅ [Cloud Sync] Fatura sincronizada.");
   },
 
   async fetchHistory(): Promise<any[]> {
+    console.info("☁️ [Cloud Sync] A descarregar histórico remoto...");
     return [];
   }
 };

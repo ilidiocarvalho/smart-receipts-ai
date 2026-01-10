@@ -32,7 +32,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
           <NavBtn label="History" icon="fa-clock" active={activeTab === 'history'} onClick={() => onTabChange('history')} />
           <NavBtn label="AI Chat" icon="fa-robot" active={activeTab === 'chat'} onClick={() => onTabChange('chat')} />
           <NavBtn label="Reports" icon="fa-chart-pie" active={activeTab === 'reports'} onClick={() => onTabChange('reports')} />
-          <NavBtn label="Settings" icon="fa-gear" active={activeTab === 'settings'} onClick={() => onTabChange('settings')} />
         </nav>
 
         {/* Sync & User Status */}
@@ -43,7 +42,11 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
               {isSyncing ? 'Syncing...' : 'Encrypted & Local'}
             </span>
           </div>
-          <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white border border-slate-700 shadow-sm cursor-pointer hover:scale-105 transition-transform">
+          <div 
+            onClick={() => onTabChange('settings')}
+            className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all cursor-pointer hover:scale-110 ${activeTab === 'settings' ? 'bg-indigo-600 text-white border-indigo-700 shadow-md ring-4 ring-indigo-50' : 'bg-slate-900 text-white border-slate-700 shadow-sm'}`}
+            title="User Profile"
+          >
             <i className="fa-solid fa-user text-xs"></i>
           </div>
         </div>

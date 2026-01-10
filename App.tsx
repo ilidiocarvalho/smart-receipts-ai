@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ReceiptUploader from './components/ReceiptUploader';
@@ -211,19 +212,9 @@ const App: React.FC = () => {
               onUpdate={handleProfileUpdate} 
               onImportData={handleImportData}
               fullHistory={state.history}
+              isCloudEnabled={state.isCloudEnabled}
+              onToggleCloud={toggleCloud}
             />
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-slate-900">Cloud Sync (BETA)</h4>
-                <p className="text-xs text-slate-500">Ativa a integração com o Firebase.</p>
-              </div>
-              <button 
-                onClick={toggleCloud}
-                className={`w-12 h-6 rounded-full transition-colors relative ${state.isCloudEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
-              >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${state.isCloudEnabled ? 'left-7' : 'left-1'}`}></div>
-              </button>
-            </div>
           </div>
         )}
       </main>
@@ -233,7 +224,7 @@ const App: React.FC = () => {
         <NavBtnMobile icon="fa-clock" label="Histórico" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
         <NavBtnMobile icon="fa-robot" label="Coach" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
         <NavBtnMobile icon="fa-chart-pie" label="Relatórios" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
-        <NavBtnMobile icon="fa-gear" label="Ajustes" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+        <NavBtnMobile icon="fa-user" label="Ajustes" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
       </nav>
     </div>
   );
