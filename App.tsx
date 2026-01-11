@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import HistoryView from './components/HistoryView';
@@ -36,7 +36,35 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.3.7";
+const APP_VERSION = "1.3.8";
+
+// v1.3.8: Synchronous initial state helper to prevent "empty-state flash"
+const getInitialState = (): AppState => {
+  const cached = localStorage.getItem(CACHE_KEY);
+  const initialState: AppState = {
+    userProfile: INITIAL_PROFILE,
+    lastAnalysis: null,
+    history: [],
+    isLoading: false,
+    error: null,
+    chatHistory: [],
+    isCloudEnabled: true,
+  };
+
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      // Ensure defaults for critical arrays
+      if (parsed.userProfile && !parsed.userProfile.custom_categories) {
+        parsed.userProfile.custom_categories = DEFAULT_CATEGORIES;
+      }
+      return { ...initialState, ...parsed };
+    } catch (e) {
+      console.error("Failed to parse initial cache", e);
+    }
+  }
+  return initialState;
+};
 
 interface PendingFile {
   data: string;
@@ -49,7 +77,6 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isHydrated, setIsHydrated] = useState(false); 
   const [draftQueue, setDraftQueue] = useState<ReceiptData[]>([]);
   const [editingReceipt, setEditingReceipt] = useState<ReceiptData | null>(null);
   const [currentProcessIndex, setCurrentProcessIndex] = useState(0);
@@ -57,53 +84,25 @@ const App: React.FC = () => {
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle');
   
   const wakeLockRef = useRef<any>(null);
-  const migratedData = localStorage.getItem('SR_LEGACY_DATA') || localStorage.getItem('SR_MOCK_CLOUD_FALLBACK');
-
-  const [state, setState] = useState<AppState>({
-    userProfile: INITIAL_PROFILE,
-    lastAnalysis: null,
-    history: [],
-    isLoading: false,
-    error: null,
-    chatHistory: [],
-    isCloudEnabled: true,
-  });
+  const [state, setState] = useState<AppState>(getInitialState);
 
   const isCloudActive = firebaseService.isUsingCloud();
-  const canAccessAdmin = state.userProfile.role === 'owner' || (state as any).role === 'owner';
+  const canAccessAdmin = state.userProfile.role === 'owner';
 
   const requestWakeLock = async () => {
     if ('wakeLock' in navigator) {
-      try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-      } catch (err) {
-        console.warn('Wake Lock request failed:', err);
-      }
+      try { wakeLockRef.current = await (navigator as any).wakeLock.request('screen'); } catch (err) {}
     }
   };
 
   const releaseWakeLock = () => {
-    if (wakeLockRef.current) {
-      wakeLockRef.current.release();
-      wakeLockRef.current = null;
-    }
+    if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
   };
 
-  // v1.3.7: Atomic Boot sequence to prevent data loss race conditions
+  // v1.3.8: Boot only handles Cloud Sync and Session Restoration
   useEffect(() => {
-    const boot = async () => {
+    const restoreSession = async () => {
       setIsInitializing(true);
-      let finalState: Partial<AppState> = {};
-
-      // 1. Try Cache First
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        try {
-          finalState = JSON.parse(cached);
-        } catch (e) { console.error("Cache parsing failed", e); }
-      }
-
-      // 2. Try Session and Cloud
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
@@ -112,61 +111,58 @@ const App: React.FC = () => {
             setIsSyncing(true);
             const cloudData = await firebaseService.syncPull(email);
             if (cloudData) {
-              finalState = { ...finalState, ...cloudData };
+              setState(prev => ({ ...prev, ...cloudData }));
             }
           }
-        } catch (e) { 
-          console.error("Cloud restoration error", e); 
+        } catch (e) {
+          console.error("Session restore error", e);
         } finally {
           setIsSyncing(false);
         }
       }
-
-      // Apply Portuguese Defaults if missing
-      if (finalState.userProfile && !finalState.userProfile.custom_categories) {
-        finalState.userProfile.custom_categories = DEFAULT_CATEGORIES;
-      }
-
-      // ONE single state update to finalize boot
-      if (finalState.userProfile && finalState.userProfile.email) {
-        setState(prev => ({ ...prev, ...finalState }));
-      }
-      
-      setIsHydrated(true); 
       setIsInitializing(false);
     };
-    boot();
+    restoreSession();
   }, []);
 
-  // v1.3.7: Secure Persistence
+  // v1.3.8: Atomic Local Persistence + Debounced Cloud Sync
   useEffect(() => {
-    // CRITICAL: NEVER save if not hydrated or if state is suspicious (e.g. email vanished)
-    if (!isHydrated || !state.userProfile.email) return;
+    if (!state.userProfile.email) return;
+
+    // 1. Instant Local Save (Non-destructive check)
+    const dataToSave = {
+      userProfile: state.userProfile,
+      history: state.history,
+      chatHistory: state.chatHistory,
+      isCloudEnabled: state.isCloudEnabled
+    };
+
+    // Safety: if state has 0 history but storage has more, don't overwrite yet
+    // unless it's a deliberate logout (which clears keys first)
+    const rawCache = localStorage.getItem(CACHE_KEY);
+    if (rawCache) {
+      const parsed = JSON.parse(rawCache);
+      if (parsed.history?.length > 0 && state.history.length === 0 && !isInitializing) {
+        console.warn("Blocking potential data loss overwrite...");
+        return;
+      }
+    }
 
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
-    
-    const timer = setTimeout(async () => {
-      const dataToSync = {
-        userProfile: state.userProfile,
-        history: state.history,
-        chatHistory: state.chatHistory,
-        isCloudEnabled: state.isCloudEnabled
-      };
-      
-      localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSync));
-      
+    localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSave));
+
+    // 2. Debounced Cloud Sync
+    const cloudTimer = setTimeout(async () => {
       if (state.isCloudEnabled && state.userProfile.email) {
         setIsSyncing(true);
-        try {
-          await firebaseService.syncPush(state.userProfile.email, dataToSync);
-        } finally {
-          setIsSyncing(false);
-        }
+        try { await firebaseService.syncPush(state.userProfile.email, dataToSave); } 
+        catch(e) { console.error("Cloud sync failed", e); }
+        finally { setIsSyncing(false); }
       }
-    }, 2000);
+    }, 5000);
 
-    return () => clearTimeout(timer);
-  }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isHydrated]);
+    return () => clearTimeout(cloudTimer);
+  }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isInitializing]);
 
   const handleSignIn = async (email: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -212,32 +208,15 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm("Terminar sessão global?")) {
+    if (confirm("Terminar sessão global? Todos os dados locais serão limpos.")) {
       localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(CACHE_KEY);
       window.location.reload();
     }
   };
 
-  const processWithTimeout = async (file: PendingFile): Promise<ReceiptData> => {
-    return new Promise(async (resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("TIMEOUT_ERROR"));
-      }, 90000); 
-      try {
-        const result = await processReceipt(
-          file.data, 
-          file.type, 
-          state.userProfile, 
-          (step) => setProcessingStep(step)
-        );
-        clearTimeout(timeout);
-        resolve(result);
-      } catch (err) {
-        clearTimeout(timeout);
-        reject(err);
-      }
-    });
+  const handleUpload = (files: PendingFile[]) => {
+    processNextInQueue(files);
   };
 
   const processNextInQueue = async (files: PendingFile[]) => {
@@ -248,11 +227,12 @@ const App: React.FC = () => {
     await requestWakeLock();
     const analyzedDrafts: ReceiptData[] = [];
     let lastError: string | null = null;
+    
     for (let i = 0; i < files.length; i++) {
       setCurrentProcessIndex(i + 1);
       const file = files[i];
       try {
-        const aiResult = await processWithTimeout(file);
+        const aiResult = await processReceipt(file.data, file.type, state.userProfile, (step) => setProcessingStep(step));
         const receipt: ReceiptData = {
           ...aiResult,
           id: crypto.randomUUID(),
@@ -260,12 +240,7 @@ const App: React.FC = () => {
         };
         analyzedDrafts.push(receipt);
       } catch (err: any) {
-        console.error(`Erro ao processar ficheiro ${i + 1}:`, err);
-        if (err.message === 'TIMEOUT_ERROR') {
-          lastError = "A IA demorou demasiado tempo (>90s). Tente novamente com uma foto mais nítida ou aproximada.";
-        } else {
-          lastError = "Erro na leitura da IA. Verifique se o talão está legível e se tem internet.";
-        }
+        lastError = "Erro na leitura da IA. Verifique a legibilidade.";
         break; 
       }
     }
@@ -275,50 +250,27 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, isLoading: false, error: lastError }));
   };
 
-  const handleUpload = (files: PendingFile[]) => {
-    processNextInQueue(files);
-  };
-
   const handleSaveDraft = (finalReceipt: ReceiptData) => {
     const isEdit = !!editingReceipt;
-    
     setState(prev => {
       const newHistory = isEdit 
         ? prev.history.map(r => r.id === finalReceipt.id ? finalReceipt : r)
         : [finalReceipt, ...prev.history].slice(0, 100);
-      
-      return {
-        ...prev,
-        lastAnalysis: finalReceipt,
-        history: newHistory
-      };
+      return { ...prev, lastAnalysis: finalReceipt, history: newHistory };
     });
-
-    if (isEdit) {
-      setEditingReceipt(null);
-    } else {
-      setDraftQueue(prev => prev.slice(1));
-    }
+    if (isEdit) setEditingReceipt(null); else setDraftQueue(prev => prev.slice(1));
     setActiveTab('dashboard');
   };
 
   const handleCancelDraft = () => {
-    if (editingReceipt) {
-      setEditingReceipt(null);
-    } else {
-      setDraftQueue(prev => prev.slice(1));
-    }
-  };
-
-  const handleEditHistory = (receipt: ReceiptData) => {
-    setEditingReceipt(receipt);
+    if (editingReceipt) setEditingReceipt(null); else setDraftQueue(prev => prev.slice(1));
   };
 
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="w-16 h-16 border-4 border-white/10 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
-        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-indigo-400 animate-pulse">Sincronizando Cofre...</p>
+        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-indigo-400">Ligando ao Cofre...</p>
       </div>
     );
   }
@@ -327,79 +279,25 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-8 bg-slate-50 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <Header 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
-        isSyncing={isSyncing} 
-        isAdmin={canAccessAdmin}
-      />
+      <Header activeTab={activeTab} onTabChange={setActiveTab} isSyncing={isSyncing} isAdmin={canAccessAdmin} />
       
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 md:py-8">
         {!state.userProfile.email ? (
-          <AuthScreen 
-            onSignIn={handleSignIn} 
-            onSignUp={handleSignUp} 
-            isLoading={state.isLoading} 
-            error={state.error} 
-            legacyDetected={!!migratedData}
-            isCloudActive={isCloudActive}
-            onClearError={() => setState(prev => ({ ...prev, error: null }))}
-            version={APP_VERSION}
-          />
+          <AuthScreen onSignIn={handleSignIn} onSignUp={handleSignUp} isLoading={state.isLoading} error={state.error} legacyDetected={false} isCloudActive={isCloudActive} onClearError={() => setState(prev => ({ ...prev, error: null }))} version={APP_VERSION} />
         ) : (
           <>
             {activeTab === 'dashboard' && (
-              <Dashboard 
-                userProfile={state.userProfile}
-                history={state.history}
-                lastAnalysis={state.lastAnalysis}
-                isLoading={state.isLoading}
-                isSyncing={isSyncing}
-                isCloudActive={isCloudActive}
-                error={state.error}
-                onUpload={handleUpload}
-                processingStep={processingStep}
-                currentProcessIndex={currentProcessIndex}
-                totalInBatch={totalInBatch}
-                onNavigateToSettings={() => setActiveTab('settings')}
-              />
+              <Dashboard userProfile={state.userProfile} history={state.history} lastAnalysis={state.lastAnalysis} isLoading={state.isLoading} isSyncing={isSyncing} isCloudActive={isCloudActive} error={state.error} onUpload={handleUpload} processingStep={processingStep} currentProcessIndex={currentProcessIndex} totalInBatch={totalInBatch} onNavigateToSettings={() => setActiveTab('settings')} />
             )}
-
             {activeTab === 'history' && (
-              <HistoryView 
-                history={state.history} 
-                isCloudActive={isCloudActive} 
-                onSelectReceipt={(receipt) => {
-                  setState(prev => ({ ...prev, lastAnalysis: receipt }));
-                  setActiveTab('dashboard');
-                }}
-                onEditReceipt={handleEditHistory}
-              />
+              <HistoryView history={state.history} isCloudActive={isCloudActive} onSelectReceipt={(r) => { setState(p => ({ ...p, lastAnalysis: r })); setActiveTab('dashboard'); }} onEditReceipt={setEditingReceipt} />
             )}
-
-            {activeTab === 'chat' && (
-              <ChatAssistant 
-                history={state.history} 
-                userProfile={state.userProfile} 
-                chatLog={state.chatHistory} 
-                onNewMessage={(msg) => setState(prev => ({ ...prev, chatHistory: [...prev.chatHistory, msg].slice(-30) }))} 
-              />
-            )}
-
+            {activeTab === 'chat' && <ChatAssistant history={state.history} userProfile={state.userProfile} chatLog={state.chatHistory} onNewMessage={(msg) => setState(p => ({ ...p, chatHistory: [...p.chatHistory, msg].slice(-30) }))} />}
             {activeTab === 'reports' && <ReportsView history={state.history} />}
             {activeTab === 'admin' && canAccessAdmin && <AdminDashboard />}
-
             {activeTab === 'settings' && (
               <div className="space-y-6">
-                 <ProfileForm 
-                   profile={state.userProfile} 
-                   onUpdate={(p) => setState(prev => ({ ...prev, userProfile: p }))}
-                   onImportData={(data) => setState(prev => ({ ...prev, ...data }))}
-                   fullHistory={state.history}
-                   isCloudEnabled={state.isCloudEnabled}
-                   onToggleCloud={() => setState(prev => ({ ...prev, isCloudEnabled: !prev.isCloudEnabled }))}
-                   version={APP_VERSION}
-                 />
+                 <ProfileForm profile={state.userProfile} onUpdate={(p) => setState(prev => ({ ...prev, userProfile: p }))} onImportData={(d) => setState(p => ({ ...p, ...d }))} fullHistory={state.history} isCloudEnabled={state.isCloudEnabled} onToggleCloud={() => setState(p => ({ ...p, isCloudEnabled: !p.isCloudEnabled }))} version={APP_VERSION} />
                  <button onClick={handleLogout} className="w-full py-6 text-rose-500 font-black text-[10px] uppercase tracking-[0.3em] hover:bg-rose-50 rounded-[1.5rem] transition-all border border-rose-100 flex items-center justify-center gap-3">
                    <i className="fa-solid fa-power-off"></i> Terminar Sessão Global
                  </button>
@@ -410,18 +308,9 @@ const App: React.FC = () => {
       </main>
 
       {currentEditorData && (
-        <ReceiptEditor 
-          receipt={currentEditorData} 
-          onSave={handleSaveDraft} 
-          onCancel={handleCancelDraft}
-          categories={state.userProfile.custom_categories || DEFAULT_CATEGORIES}
-          queueInfo={editingReceipt ? "Modo Edição" : (draftQueue.length > 1 ? `Restam ${draftQueue.length - 1} documentos` : undefined)}
-        />
+        <ReceiptEditor receipt={currentEditorData} onSave={handleSaveDraft} onCancel={handleCancelDraft} categories={state.userProfile.custom_categories || DEFAULT_CATEGORIES} />
       )}
-
-      {state.userProfile.email && (
-        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-      )}
+      {state.userProfile.email && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
     </div>
   );
 };

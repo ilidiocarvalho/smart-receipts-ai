@@ -33,30 +33,33 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.user_name.trim()) {
-      alert("Por favor, introduza o seu nome.");
-      return;
-    }
     onUpdate(formData);
-    alert(isCloudActive ? "Perfil guardado com sucesso na Cloud!" : "Perfil guardado localmente (Cloud não configurada).");
+    alert("Definições de perfil guardadas.");
   };
 
+  // v1.3.8: Immediate propagation for categories
   const addCategory = () => {
     if (!newCat.trim()) return;
     const currentCats = formData.custom_categories || DEFAULT_CATEGORIES;
     if (currentCats.includes(newCat.trim())) return;
-    setFormData({ ...formData, custom_categories: [...currentCats, newCat.trim()] });
+    const updated = { ...formData, custom_categories: [...currentCats, newCat.trim()] };
+    setFormData(updated);
+    onUpdate(updated); // Propagate immediately
     setNewCat('');
   };
 
   const removeCategory = (cat: string) => {
     const currentCats = formData.custom_categories || DEFAULT_CATEGORIES;
-    setFormData({ ...formData, custom_categories: currentCats.filter(c => c !== cat) });
+    const updated = { ...formData, custom_categories: currentCats.filter(c => c !== cat) };
+    setFormData(updated);
+    onUpdate(updated); // Propagate immediately
   };
 
   const resetCategories = () => {
-    if (confirm("Repor categorias originais (em Português)?")) {
-      setFormData({ ...formData, custom_categories: DEFAULT_CATEGORIES });
+    if (confirm("Repor categorias originais em Português?")) {
+      const updated = { ...formData, custom_categories: DEFAULT_CATEGORIES };
+      setFormData(updated);
+      onUpdate(updated);
     }
   };
 
@@ -79,9 +82,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           </div>
           <p className="text-base font-bold text-indigo-600 mt-1">{profile.email}</p>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-            {isCloudActive 
-              ? 'O SmartReceipts AI está a sincronizar o teu histórico permanentemente no Firebase.' 
-              : 'As chaves da Cloud não foram detetadas. Os teus dados estão apenas neste dispositivo.'}
+            As tuas alterações são guardadas instantaneamente no dispositivo.
           </p>
         </div>
         
@@ -90,7 +91,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
         </div>
       </div>
 
-      {/* Main Profile Settings */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Definições da Tua Identidade</h4>
@@ -104,7 +104,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                 type="text" 
                 required
                 value={formData.user_name}
-                placeholder="Ex: Bruno"
                 onChange={e => setFormData({ ...formData, user_name: e.target.value })}
                 className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-600 outline-none transition-all font-bold text-slate-800"
               />
@@ -149,17 +148,20 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           </div>
 
           {/* Categorias Management */}
-          <div className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="space-y-4 pt-6 border-t border-slate-100">
              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Gestão de Categorias (PT)</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Gestão de Categorias (PT)</label>
+                  <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-emerald-100">Auto-Save</span>
+                </div>
                 <button type="button" onClick={resetCategories} className="text-[9px] font-black uppercase text-indigo-500 hover:underline">Repor Padrão</button>
              </div>
              
-             <div className="flex flex-wrap gap-2">
+             <div className="flex flex-wrap gap-2 min-h-[40px]">
                 {(formData.custom_categories || DEFAULT_CATEGORIES).map(cat => (
-                  <div key={cat} className="group flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl border border-indigo-100">
+                  <div key={cat} className="group flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl border border-indigo-100 hover:bg-white hover:shadow-md transition-all">
                     <span className="text-xs font-bold">{cat}</span>
-                    <button type="button" onClick={() => removeCategory(cat)} className="text-indigo-300 hover:text-rose-500 transition-colors">
+                    <button type="button" onClick={() => removeCategory(cat)} className="text-indigo-300 hover:text-rose-500 transition-colors px-1">
                       <i className="fa-solid fa-circle-xmark text-[10px]"></i>
                     </button>
                   </div>
@@ -172,31 +174,30 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                   value={newCat}
                   placeholder="Nova categoria..."
                   onChange={e => setNewCat(e.target.value)}
-                  className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCategory())}
+                  className="flex-1 px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:border-indigo-600 outline-none transition-all"
                 />
                 <button 
                   type="button" 
                   onClick={addCategory}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest"
+                  className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-100"
                 >
                   Adicionar
                 </button>
              </div>
-             <p className="text-[9px] text-slate-400 italic">A IA usará estas etiquetas para classificar os teus produtos.</p>
           </div>
 
-          <button type="submit" className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-black transition-all shadow-2xl shadow-slate-200 flex items-center justify-center gap-3">
+          <button type="submit" className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98]">
             <i className={`fa-solid ${isCloudActive ? 'fa-cloud-arrow-up' : 'fa-floppy-disk'}`}></i> 
-            {isCloudActive ? 'Atualizar e Sincronizar Agora' : 'Guardar Alterações (Local)'}
+            Guardar Dados do Perfil
           </button>
         </form>
       </div>
 
       <div className="flex items-center justify-between px-8 py-4 bg-slate-100/50 rounded-2xl">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Build v{version} • {isCloudActive ? 'Cloud Engine 1.2' : 'Standalone Mode'}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Build v{version} • Armazenamento Atómico</p>
           <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600">
-             <i className="fa-solid fa-lock"></i> 
-             Encriptação de Ponta-a-Ponta
+             <i className="fa-solid fa-lock"></i> Dados Blindados Localmente
           </div>
       </div>
     </div>
