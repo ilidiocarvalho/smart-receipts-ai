@@ -30,7 +30,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.3.5";
+const APP_VERSION = "1.3.6";
 
 interface PendingFile {
   data: string;
@@ -43,6 +43,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false); // Critical: prevent saving empty state
   const [draftQueue, setDraftQueue] = useState<ReceiptData[]>([]);
   const [editingReceipt, setEditingReceipt] = useState<ReceiptData | null>(null);
   const [currentProcessIndex, setCurrentProcessIndex] = useState(0);
@@ -82,40 +83,55 @@ const App: React.FC = () => {
     }
   };
 
+  // v1.3.6: Robust Hydration & Boot
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
+      
+      // 1. Try Cache First
       const cached = localStorage.getItem(CACHE_KEY);
+      let localData: Partial<AppState> | null = null;
       if (cached) {
         try {
-          const parsedCache = JSON.parse(cached);
-          setState(prev => ({ ...prev, ...parsedCache, isLoading: false }));
-        } catch (e) { console.error("Cache error", e); }
+          localData = JSON.parse(cached);
+          if (localData) {
+            setState(prev => ({ ...prev, ...localData }));
+          }
+        } catch (e) { console.error("Cache parsing failed", e); }
       }
+
+      // 2. Try Session and Cloud
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
           const { email } = JSON.parse(session);
-          setIsSyncing(true);
-          const cloudData = await firebaseService.syncPull(email);
-          if (cloudData) {
-            setState(prev => ({ ...prev, ...cloudData, isLoading: false }));
-            localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
+          if (email) {
+            setIsSyncing(true);
+            const cloudData = await firebaseService.syncPull(email);
+            if (cloudData) {
+              setState(prev => ({ ...prev, ...cloudData }));
+              localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
+            }
           }
         } catch (e) { 
-          console.error("Session restoration error", e); 
+          console.error("Cloud restoration error", e); 
         } finally {
           setIsSyncing(false);
         }
       }
+
+      setIsHydrated(true); // Now we can safely save state changes
       setIsInitializing(false);
     };
     boot();
   }, []);
 
+  // v1.3.6: Safe Persistence - ONLY saves if hydrated and we have a user
   useEffect(() => {
-    if (isInitializing || !state.userProfile.email) return;
+    if (!isHydrated || !state.userProfile.email) return;
+
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
+    
     const timer = setTimeout(async () => {
       const dataToSync = {
         userProfile: state.userProfile,
@@ -123,8 +139,10 @@ const App: React.FC = () => {
         chatHistory: state.chatHistory,
         isCloudEnabled: state.isCloudEnabled
       };
+      
       localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSync));
-      if (state.isCloudEnabled) {
+      
+      if (state.isCloudEnabled && state.userProfile.email) {
         setIsSyncing(true);
         try {
           await firebaseService.syncPush(state.userProfile.email, dataToSync);
@@ -133,8 +151,9 @@ const App: React.FC = () => {
         }
       }
     }, 2000);
+
     return () => clearTimeout(timer);
-  }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isInitializing]);
+  }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isHydrated]);
 
   const handleSignIn = async (email: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -282,7 +301,7 @@ const App: React.FC = () => {
     setEditingReceipt(receipt);
   };
 
-  if (isInitializing && !state.userProfile.email) {
+  if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="w-16 h-16 border-4 border-white/10 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
