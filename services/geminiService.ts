@@ -72,12 +72,13 @@ export async function processReceipt(
       Perfil: ${userContext.user_name}, Orçamento: €${userContext.monthly_budget}, Dieta: ${userContext.dietary_regime}.
       
       Tarefa:
-      1. OCR: loja, data (YYYY-MM-DD), hora (HH:MM), totais.
+      1. OCR: Extraia loja, data (YYYY-MM-DD), hora (HH:MM), totais. Se não encontrar data use hoje. Se não encontrar hora use 12:00.
       2. Normalize produtos e use EXCLUSIVAMENTE estas categorias: [${categoriesList}].
       3. Verifique conformidade com ${userContext.dietary_regime}.
       4. Coaching em Português de Portugal (PT-PT).
+      5. IMPORTANTE: Para preços e quantidades use apenas números. Se o valor for "2,50" retorne 2.5.
 
-      Schema: JSON matching meta, items, analysis, coach_message.
+      Schema: JSON matching meta, items, analysis, coach_message. Seja tolerante com campos em falta, use valores padrão em vez de falhar.
     `;
 
     const mediaPart = {
@@ -95,9 +96,9 @@ export async function processReceipt(
             time: { type: Type.STRING },
             total_spent: { type: Type.NUMBER },
             total_saved: { type: Type.NUMBER },
-            scan_quality: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+            scan_quality: { type: Type.STRING },
           },
-          required: ["store", "date", "time", "total_spent", "total_saved", "scan_quality"],
+          required: ["store", "date", "total_spent"],
         },
         items: {
           type: Type.ARRAY,
@@ -113,7 +114,7 @@ export async function processReceipt(
               is_discounted: { type: Type.BOOLEAN },
               tags: { type: Type.ARRAY, items: { type: Type.STRING } },
             },
-            required: ["name_raw", "name_clean", "category", "qty", "unit_price", "total_price"],
+            required: ["name_clean", "category", "total_price"],
           },
         },
         analysis: {
@@ -124,7 +125,6 @@ export async function processReceipt(
             flagged_items: { type: Type.ARRAY, items: { type: Type.STRING } },
             insights: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
-          required: ["budget_impact_percentage", "dietary_compliance", "flagged_items", "insights"],
         },
         coach_message: { type: Type.STRING },
       },
@@ -145,8 +145,14 @@ export async function processReceipt(
     const resultText = response.text;
     if (!resultText) throw new Error("A IA não retornou dados.");
     
-    return JSON.parse(resultText);
+    const parsed = JSON.parse(resultText);
+    // Sanitize scan_quality to match type
+    if (!['High', 'Medium', 'Low'].includes(parsed.meta.scan_quality)) {
+      parsed.meta.scan_quality = 'Medium';
+    }
+    return parsed;
   } catch (error: any) {
+    console.error("Gemini Error:", error);
     if (retryCount < 1) {
       return processReceipt(base64Data, mimeType, userContext, onStep, retryCount + 1);
     }

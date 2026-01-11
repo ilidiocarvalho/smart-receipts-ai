@@ -36,9 +36,8 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.3.8";
+const APP_VERSION = "1.3.9";
 
-// v1.3.8: Synchronous initial state helper to prevent "empty-state flash"
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
   const initialState: AppState = {
@@ -54,7 +53,6 @@ const getInitialState = (): AppState => {
   if (cached) {
     try {
       const parsed = JSON.parse(cached);
-      // Ensure defaults for critical arrays
       if (parsed.userProfile && !parsed.userProfile.custom_categories) {
         parsed.userProfile.custom_categories = DEFAULT_CATEGORIES;
       }
@@ -99,7 +97,7 @@ const App: React.FC = () => {
     if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
   };
 
-  // v1.3.8: Boot only handles Cloud Sync and Session Restoration
+  // v1.3.9: Boot with "Smarter Merge" - don't let old cloud data wipe new local history
   useEffect(() => {
     const restoreSession = async () => {
       setIsInitializing(true);
@@ -111,7 +109,14 @@ const App: React.FC = () => {
             setIsSyncing(true);
             const cloudData = await firebaseService.syncPull(email);
             if (cloudData) {
-              setState(prev => ({ ...prev, ...cloudData }));
+              setState(prev => {
+                // If cloud history is shorter than local history, cloud might be stale
+                if (cloudData.history?.length < prev.history?.length) {
+                  console.warn("Cloud data seems stale compared to local. Keeping local history.");
+                  return { ...prev, userProfile: cloudData.userProfile }; // Still update profile maybe
+                }
+                return { ...prev, ...cloudData };
+              });
             }
           }
         } catch (e) {
@@ -125,11 +130,9 @@ const App: React.FC = () => {
     restoreSession();
   }, []);
 
-  // v1.3.8: Atomic Local Persistence + Debounced Cloud Sync
   useEffect(() => {
     if (!state.userProfile.email) return;
 
-    // 1. Instant Local Save (Non-destructive check)
     const dataToSave = {
       userProfile: state.userProfile,
       history: state.history,
@@ -137,13 +140,10 @@ const App: React.FC = () => {
       isCloudEnabled: state.isCloudEnabled
     };
 
-    // Safety: if state has 0 history but storage has more, don't overwrite yet
-    // unless it's a deliberate logout (which clears keys first)
     const rawCache = localStorage.getItem(CACHE_KEY);
     if (rawCache) {
       const parsed = JSON.parse(rawCache);
       if (parsed.history?.length > 0 && state.history.length === 0 && !isInitializing) {
-        console.warn("Blocking potential data loss overwrite...");
         return;
       }
     }
@@ -151,7 +151,6 @@ const App: React.FC = () => {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
     localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSave));
 
-    // 2. Debounced Cloud Sync
     const cloudTimer = setTimeout(async () => {
       if (state.isCloudEnabled && state.userProfile.email) {
         setIsSyncing(true);
@@ -163,6 +162,29 @@ const App: React.FC = () => {
 
     return () => clearTimeout(cloudTimer);
   }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isInitializing]);
+
+  const handleManualEntry = () => {
+    const manualReceipt: ReceiptData = {
+      id: crypto.randomUUID(),
+      meta: {
+        store: "Nova Loja",
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        total_spent: 0,
+        total_saved: 0,
+        scan_quality: 'High'
+      },
+      items: [],
+      analysis: {
+        budget_impact_percentage: 0,
+        dietary_compliance: true,
+        flagged_items: [],
+        insights: ["Entrada manual."]
+      },
+      coach_message: "A validar a sua entrada manual..."
+    };
+    setEditingReceipt(manualReceipt);
+  };
 
   const handleSignIn = async (email: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -240,7 +262,7 @@ const App: React.FC = () => {
         };
         analyzedDrafts.push(receipt);
       } catch (err: any) {
-        lastError = "Erro na leitura da IA. Verifique a legibilidade.";
+        lastError = "Erro na leitura da IA. Verifique se o talão está bem iluminado e plano.";
         break; 
       }
     }
@@ -287,7 +309,21 @@ const App: React.FC = () => {
         ) : (
           <>
             {activeTab === 'dashboard' && (
-              <Dashboard userProfile={state.userProfile} history={state.history} lastAnalysis={state.lastAnalysis} isLoading={state.isLoading} isSyncing={isSyncing} isCloudActive={isCloudActive} error={state.error} onUpload={handleUpload} processingStep={processingStep} currentProcessIndex={currentProcessIndex} totalInBatch={totalInBatch} onNavigateToSettings={() => setActiveTab('settings')} />
+              <Dashboard 
+                userProfile={state.userProfile} 
+                history={state.history} 
+                lastAnalysis={state.lastAnalysis} 
+                isLoading={state.isLoading} 
+                isSyncing={isSyncing} 
+                isCloudActive={isCloudActive} 
+                error={state.error} 
+                onUpload={handleUpload} 
+                onManualEntry={handleManualEntry}
+                processingStep={processingStep} 
+                currentProcessIndex={currentProcessIndex} 
+                totalInBatch={totalInBatch} 
+                onNavigateToSettings={() => setActiveTab('settings')} 
+              />
             )}
             {activeTab === 'history' && (
               <HistoryView history={state.history} isCloudActive={isCloudActive} onSelectReceipt={(r) => { setState(p => ({ ...p, lastAnalysis: r })); setActiveTab('dashboard'); }} onEditReceipt={setEditingReceipt} />

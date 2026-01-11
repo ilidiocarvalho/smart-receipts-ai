@@ -14,6 +14,7 @@ interface DashboardProps {
   isCloudActive: boolean;
   error: string | null;
   onUpload: (files: { data: string, type: string }[]) => void;
+  onManualEntry: () => void;
   processingStep?: 'idle' | 'compressing' | 'analyzing' | 'finalizing';
   currentProcessIndex?: number;
   totalInBatch?: number;
@@ -29,6 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   isCloudActive,
   error,
   onUpload,
+  onManualEntry,
   processingStep,
   currentProcessIndex,
   totalInBatch,
@@ -76,13 +78,27 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       <BudgetForecast profile={userProfile} history={history} />
       
-      <ReceiptUploader 
-        onUpload={onUpload} 
-        isLoading={isLoading} 
-        processingStep={processingStep}
-        currentProcessIndex={currentProcessIndex}
-        totalInBatch={totalInBatch}
-      />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="md:col-span-3">
+          <ReceiptUploader 
+            onUpload={onUpload} 
+            isLoading={isLoading} 
+            processingStep={processingStep}
+            currentProcessIndex={currentProcessIndex}
+            totalInBatch={totalInBatch}
+          />
+        </div>
+        <button 
+          onClick={onManualEntry}
+          disabled={isLoading}
+          className="bg-white border-2 border-slate-100 text-slate-900 p-8 rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-indigo-600 hover:bg-indigo-50/30 transition-all shadow-sm group active:scale-95 disabled:opacity-50"
+        >
+          <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+            <i className="fa-solid fa-keyboard text-xl"></i>
+          </div>
+          <p className="font-black text-xs uppercase tracking-widest text-center">Entrada Manual</p>
+        </button>
+      </div>
       
       {error && (
         <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl text-rose-700 text-xs font-black animate-shake flex items-center gap-3">
