@@ -28,8 +28,10 @@ const INITIAL_PROFILE: UserContext = {
   role: 'user'
 };
 
-const SESSION_KEY = 'SR_SESSION_V133';
-const APP_VERSION = "1.3.3";
+// v1.3.4: Stable Session Key to prevent forced logout on updates
+const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
+const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
+const APP_VERSION = "1.3.4";
 
 interface PendingFile {
   data: string;
@@ -63,14 +65,12 @@ const App: React.FC = () => {
   const isCloudActive = firebaseService.isUsingCloud();
   const canAccessAdmin = state.userProfile.role === 'owner' || (state as any).role === 'owner';
 
-  // v1.3.3 Wake Lock Implementation
   const requestWakeLock = async () => {
     if ('wakeLock' in navigator) {
       try {
         wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        console.log('Wake Lock is active');
       } catch (err) {
-        console.error(`${err.name}, ${err.message}`);
+        console.warn('Wake Lock request failed:', err);
       }
     }
   };
@@ -85,6 +85,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
+      
+      // 1. Try to load from Local Cache for instant UI
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try {
+          const parsedCache = JSON.parse(cached);
+          setState(prev => ({ ...prev, ...parsedCache, isLoading: false }));
+        } catch (e) { console.error("Cache error", e); }
+      }
+
+      // 2. Authenticate session
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
@@ -93,10 +104,15 @@ const App: React.FC = () => {
           const cloudData = await firebaseService.syncPull(email);
           if (cloudData) {
             setState(prev => ({ ...prev, ...cloudData, isLoading: false }));
+            // Update cache after cloud pull
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
           }
-        } catch (e) { console.error("Erro ao restaurar sessão", e); }
+        } catch (e) { 
+          console.error("Session restoration error", e); 
+        } finally {
+          setIsSyncing(false);
+        }
       }
-      setIsSyncing(false);
       setIsInitializing(false);
     };
     boot();
@@ -104,23 +120,32 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (isInitializing || !state.userProfile.email) return;
+    
+    // Save session
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
-    if (state.isCloudEnabled) {
-      setIsSyncing(true);
-      const timer = setTimeout(async () => {
+    
+    // Cloud & Cache Sync
+    const timer = setTimeout(async () => {
+      const dataToSync = {
+        userProfile: state.userProfile,
+        history: state.history,
+        chatHistory: state.chatHistory,
+        isCloudEnabled: state.isCloudEnabled
+      };
+      
+      localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSync));
+
+      if (state.isCloudEnabled) {
+        setIsSyncing(true);
         try {
-          await firebaseService.syncPush(state.userProfile.email, {
-            userProfile: state.userProfile,
-            history: state.history,
-            chatHistory: state.chatHistory,
-            isCloudEnabled: state.isCloudEnabled
-          });
+          await firebaseService.syncPush(state.userProfile.email, dataToSync);
         } finally {
           setIsSyncing(false);
         }
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
+      }
+    }, 2000);
+    
+    return () => clearTimeout(timer);
   }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isInitializing]);
 
   const handleSignIn = async (email: string) => {
@@ -134,7 +159,7 @@ const App: React.FC = () => {
         setState(prev => ({ ...prev, error: "USER_NOT_FOUND", isLoading: false }));
       }
     } catch (err) {
-      setState(prev => ({ ...prev, error: "Erro na Cloud.", isLoading: false }));
+      setState(prev => ({ ...prev, error: "Erro de conexão com a Cloud.", isLoading: false }));
     }
   };
 
@@ -162,22 +187,24 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, userProfile: profile, isLoading: false }));
       setActiveTab('settings');
     } catch (err) {
-      setState(prev => ({ ...prev, error: "Erro ao criar conta.", isLoading: false }));
+      setState(prev => ({ ...prev, error: "Falha ao criar conta.", isLoading: false }));
     }
   };
 
   const handleLogout = () => {
     if (confirm("Terminar sessão global?")) {
       localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(CACHE_KEY);
       window.location.reload();
     }
   };
 
   const processWithTimeout = async (file: PendingFile): Promise<ReceiptData> => {
     return new Promise(async (resolve, reject) => {
+      // v1.3.4: Increased to 90s for complex receipts
       const timeout = setTimeout(() => {
         reject(new Error("TIMEOUT_ERROR"));
-      }, 60000); // 60s limit
+      }, 90000); 
 
       try {
         const result = await processReceipt(
@@ -204,6 +231,7 @@ const App: React.FC = () => {
     await requestWakeLock();
 
     const analyzedDrafts: ReceiptData[] = [];
+    let lastError: string | null = null;
     
     for (let i = 0; i < files.length; i++) {
       setCurrentProcessIndex(i + 1);
@@ -219,20 +247,18 @@ const App: React.FC = () => {
       } catch (err: any) {
         console.error(`Erro ao processar ficheiro ${i + 1}:`, err);
         if (err.message === 'TIMEOUT_ERROR') {
-          setState(prev => ({ ...prev, error: "A ligação demorou demasiado tempo. Verifique a internet e mantenha o ecrã ligado." }));
-          break; // Stop batch if we hit a timeout
+          lastError = "A IA demorou demasiado tempo (>90s). Tente novamente com uma foto mais nítida ou aproximada.";
+        } else {
+          lastError = "Erro na leitura da IA. Verifique se o talão está legível e se tem internet.";
         }
+        break; 
       }
     }
 
     releaseWakeLock();
     setProcessingStep('idle');
     setDraftQueue(analyzedDrafts);
-    setState(prev => ({ ...prev, isLoading: false }));
-    
-    if (analyzedDrafts.length === 0 && !state.error) {
-      setState(prev => ({ ...prev, error: "Não foi possível processar os ficheiros selecionados." }));
-    }
+    setState(prev => ({ ...prev, isLoading: false, error: lastError }));
   };
 
   const handleUpload = (files: PendingFile[]) => {
@@ -253,7 +279,7 @@ const App: React.FC = () => {
     setDraftQueue(prev => prev.slice(1));
   };
 
-  if (isInitializing) {
+  if (isInitializing && !state.userProfile.email) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="w-16 h-16 border-4 border-white/10 border-t-indigo-500 rounded-full animate-spin mb-6"></div>

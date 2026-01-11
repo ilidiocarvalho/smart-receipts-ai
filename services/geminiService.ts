@@ -10,10 +10,6 @@ const getAIClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-/**
- * v1.3.3: Optimized compression for faster network transit.
- * Lowered maxWidth and quality to ensure files stay under ~500KB.
- */
 export async function compressImage(base64Str: string, maxWidth = 1200, quality = 0.7): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -69,21 +65,18 @@ export async function processReceipt(
     }
 
     onStep?.('analyzing');
+    // v1.3.4: Refined prompt for faster inference
     const promptText = `
-      Analyze the provided document (receipt image or PDF) and the user's personal context.
+      OCR and analyze this receipt. Return ONLY JSON.
+      User Profile: ${userContext.user_name}, Budget: €${userContext.monthly_budget}, Diet: ${userContext.dietary_regime}.
       
-      # User Context
-      ${JSON.stringify(userContext, null, 2)}
+      Tasks:
+      1. OCR: store, date (YYYY-MM-DD), time (HH:MM), totals.
+      2. Normalize products and categorize.
+      3. Evaluate ${userContext.dietary_regime} compliance.
+      4. Coach advice in PT-PT.
 
-      # Core Tasks:
-      1. OCR: Extract store, date (YYYY-MM-DD), time (HH:MM), items, prices.
-      2. Normalize: Clean product names.
-      3. Categorize items into defined groups.
-      4. Check compliance with ${userContext.dietary_regime} diet.
-      5. Provide a personal coach message in Portuguese (PT-PT).
-
-      # Output:
-      Return a single JSON object matching the defined schema.
+      Schema strictly: JSON matching meta, items, analysis, coach_message.
     `;
 
     const mediaPart = {
@@ -137,8 +130,6 @@ export async function processReceipt(
       required: ["meta", "items", "analysis", "coach_message"],
     };
 
-    // v1.3.3: Wrap in a promise to allow external timeout control if needed, 
-    // although App.tsx handles the main timeout.
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts: [mediaPart, { text: promptText }] },
