@@ -40,22 +40,31 @@ export async function compressImage(base64Str: string, maxWidth = 1600, quality 
       const compressed = canvas.toDataURL('image/jpeg', quality);
       resolve(compressed.split(',')[1]);
     };
-    img.onerror = (e) => reject("Erro ao carregar imagem para compressão.");
+    img.onerror = () => reject("Erro ao carregar imagem para compressão.");
   });
 }
 
 export async function processReceipt(
-  base64Image: string,
+  base64Data: string,
+  mimeType: string,
   userContext: UserContext,
   retryCount = 0
 ): Promise<ReceiptData> {
   try {
     const ai = getAIClient();
-    // Compressão ligeiramente maior para garantir que passa nos limites da API sem perder OCR
-    const processedImage = await compressImage(base64Image);
+    let finalData = base64Data;
+
+    // Apenas comprimimos se for imagem. PDFs são enviados tal como estão.
+    if (mimeType.startsWith('image/')) {
+      try {
+        finalData = await compressImage(base64Data);
+      } catch (e) {
+        console.warn("Falha na compressão, enviando original...", e);
+      }
+    }
 
     const promptText = `
-      Analyze the provided receipt image and the user's personal context.
+      Analyze the provided document (receipt image or PDF) and the user's personal context.
       
       # User Context
       ${JSON.stringify(userContext, null, 2)}
@@ -65,16 +74,16 @@ export async function processReceipt(
       2. Normalize: Clean product names (e.g. "P. Queijo" -> "Pão de Queijo").
       3. Categorize: Assign one of (Dairy, Produce, Bakery, Butcher, Pantry, Frozen, Snacks, Beverages, Household, Personal Care, Pets).
       4. Compliance: Check if items fit the ${userContext.dietary_regime} diet.
-      5. Coaching: Provide a supportive message as a personal coach.
+      5. Coaching: Provide a supportive message as a personal coach in Portuguese (PT-PT).
 
       # Strict Output Format:
       Return a single JSON object matching the defined schema.
     `;
 
-    const imagePart = {
+    const mediaPart = {
       inlineData: {
-        mimeType: "image/jpeg",
-        data: processedImage,
+        mimeType: mimeType,
+        data: finalData,
       },
     };
 
@@ -129,10 +138,9 @@ export async function processReceipt(
       required: ["meta", "items", "analysis", "coach_message"],
     };
 
-    // v1.3.1: Using gemini-3-flash-preview for better balance of speed and image understanding
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: { parts: [imagePart, textPart] },
+      contents: { parts: [mediaPart, textPart] },
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
@@ -141,14 +149,18 @@ export async function processReceipt(
     });
 
     const resultText = response.text;
-    if (!resultText) throw new Error("A IA não retornou dados de texto.");
+    if (!resultText) throw new Error("A IA não retornou dados.");
     
     return JSON.parse(resultText);
-  } catch (error) {
-    console.error("Erro Gemini:", error);
+  } catch (error: any) {
+    console.group("Erro Gemini API");
+    console.error("Mensagem:", error.message);
+    console.error("Stack:", error.stack);
+    console.groupEnd();
+
     if (retryCount < 1) {
-      console.warn("Tentativa de recuperação (retry)...");
-      return processReceipt(base64Image, userContext, retryCount + 1);
+      console.warn("Tentando novamente...");
+      return processReceipt(base64Data, mimeType, userContext, retryCount + 1);
     }
     throw error;
   }
@@ -165,6 +177,7 @@ export async function chatWithAssistant(
   const systemInstruction = `
     You are the "SmartReceipts AI Coach".
     Your tone is professional, encouraging, and data-driven.
+    Response in Portuguese (PT-PT).
     
     # Knowledge Base:
     - User Profile: ${JSON.stringify(userProfile)}
@@ -174,11 +187,6 @@ export async function chatWithAssistant(
         total: h.meta.total_spent,
         items: h.items.map(i => i.name_clean)
       })))}
-
-    # Rules:
-    1. Be concise.
-    2. If asked about spending, use the provided history.
-    3. If asked for recipes, only suggest ones that use ingredients found in the history.
   `;
 
   const chat = ai.chats.create({

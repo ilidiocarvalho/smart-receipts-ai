@@ -28,16 +28,26 @@ const INITIAL_PROFILE: UserContext = {
   role: 'user'
 };
 
-const SESSION_KEY = 'SR_SESSION_V115';
-const APP_VERSION = "1.3.1";
+const SESSION_KEY = 'SR_SESSION_V132';
+const APP_VERSION = "1.3.2";
+
+interface PendingFile {
+  data: string;
+  type: string;
+}
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [migratedData, setMigratedData] = useState<any>(null);
-  const [draftReceipt, setDraftReceipt] = useState<ReceiptData | null>(null);
+  const [draftQueue, setDraftQueue] = useState<ReceiptData[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [currentProcessIndex, setCurrentProcessIndex] = useState(0);
+  const [totalInBatch, setTotalInBatch] = useState(0);
   
+  // Defined migratedData to check for existing legacy information in local storage
+  const migratedData = localStorage.getItem('SR_LEGACY_DATA') || localStorage.getItem('SR_MOCK_CLOUD_FALLBACK');
+
   const [state, setState] = useState<AppState>({
     userProfile: INITIAL_PROFILE,
     lastAnalysis: null,
@@ -54,7 +64,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
-      
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
@@ -66,7 +75,6 @@ const App: React.FC = () => {
           }
         } catch (e) { console.error("Erro ao restaurar sessão", e); }
       }
-      
       setIsSyncing(false);
       setIsInitializing(false);
     };
@@ -75,9 +83,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (isInitializing || !state.userProfile.email) return;
-
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
-
     if (state.isCloudEnabled) {
       setIsSyncing(true);
       const timer = setTimeout(async () => {
@@ -99,37 +105,31 @@ const App: React.FC = () => {
   const handleSignIn = async (email: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
-      const exists = await firebaseService.userExists(email);
-      if (!exists) {
-        setState(prev => ({ ...prev, error: "USER_NOT_FOUND", isLoading: false }));
-        return;
-      }
       const data = await firebaseService.syncPull(email);
       if (data) {
         setState(prev => ({ ...prev, ...data, isLoading: false }));
         setActiveTab('dashboard');
+      } else {
+        setState(prev => ({ ...prev, error: "USER_NOT_FOUND", isLoading: false }));
       }
     } catch (err) {
-      setState(prev => ({ ...prev, error: "Erro na Cloud. Verifica a net.", isLoading: false }));
+      setState(prev => ({ ...prev, error: "Erro na Cloud.", isLoading: false }));
     }
   };
 
   const handleSignUp = async (email: string, promoCode?: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
     const access = accessService.validateCode(promoCode || '');
     if (!access) {
       setState(prev => ({ ...prev, error: "INVALID_PROMO", isLoading: false }));
       return;
     }
-
     try {
       const exists = await firebaseService.userExists(email);
       if (exists) {
         setState(prev => ({ ...prev, error: "USER_ALREADY_EXISTS", isLoading: false }));
         return;
       }
-
       const profile: UserContext = {
         ...INITIAL_PROFILE,
         email: email.toLowerCase(),
@@ -138,14 +138,7 @@ const App: React.FC = () => {
         role: access.role,
         joined_at: new Date().toISOString()
       };
-      
-      setState(prev => ({
-        ...prev,
-        userProfile: profile,
-        isLoading: false,
-        error: null
-      }));
-
+      setState(prev => ({ ...prev, userProfile: profile, isLoading: false }));
       setActiveTab('settings');
     } catch (err) {
       setState(prev => ({ ...prev, error: "Erro ao criar conta.", isLoading: false }));
@@ -153,47 +146,78 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm("Tens a certeza? Os dados estão seguros na Cloud.")) {
+    if (confirm("Terminar sessão global?")) {
       localStorage.removeItem(SESSION_KEY);
       window.location.reload();
     }
   };
 
-  const handleUpload = async (base64: string) => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const aiResult = await processReceipt(base64, state.userProfile);
-      const newDraft: ReceiptData = { 
-        ...aiResult, 
-        id: crypto.randomUUID(),
-        imageUrl: `data:image/jpeg;base64,${base64}` 
-      };
-      setDraftReceipt(newDraft);
-      setState(prev => ({ ...prev, isLoading: false }));
-    } catch (err: any) {
-      console.error("Erro no processamento:", err);
-      setState(prev => ({ ...prev, isLoading: false, error: "Erro ao processar imagem. Tente uma foto mais nítida." }));
+  // v1.3.2 Sequential Processing Logic
+  const processNextInQueue = async (files: PendingFile[]) => {
+    if (files.length === 0) return;
+    
+    setTotalInBatch(files.length);
+    setCurrentProcessIndex(0);
+    setState(prev => ({ ...prev, isLoading: true }));
+
+    const analyzedDrafts: ReceiptData[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      setCurrentProcessIndex(i + 1);
+      const file = files[i];
+      try {
+        const aiResult = await processReceipt(file.data, file.type, state.userProfile);
+        const receipt: ReceiptData = {
+          ...aiResult,
+          id: crypto.randomUUID(),
+          // Se for imagem, usamos como preview. Se for PDF, poderíamos usar um ícone, mas por simplicidade deixamos vazio se não for imagem.
+          imageUrl: file.type.startsWith('image/') ? `data:${file.type};base64,${file.data}` : undefined
+        };
+        analyzedDrafts.push(receipt);
+      } catch (err) {
+        console.error(`Erro ao processar ficheiro ${i + 1}:`, err);
+        // Continuamos para os próximos mesmo se um falhar
+      }
+    }
+
+    setDraftQueue(analyzedDrafts);
+    setState(prev => ({ ...prev, isLoading: false }));
+    if (analyzedDrafts.length === 0) {
+      setState(prev => ({ ...prev, error: "Nenhum ficheiro pôde ser processado." }));
     }
   };
 
+  const handleUpload = (files: PendingFile[]) => {
+    processNextInQueue(files);
+  };
+
   const handleSaveDraft = (finalReceipt: ReceiptData) => {
+    // Adicionar ao histórico real
     setState(prev => ({
       ...prev,
       lastAnalysis: finalReceipt,
-      history: [finalReceipt, ...prev.history].slice(0, 50)
+      history: [finalReceipt, ...prev.history].slice(0, 100)
     }));
-    setDraftReceipt(null);
+    
+    // Remover o atual da fila e avançar para o próximo se existir
+    setDraftQueue(prev => prev.slice(1));
     setActiveTab('dashboard');
+  };
+
+  const handleCancelDraft = () => {
+    setDraftQueue(prev => prev.slice(1));
   };
 
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="w-16 h-16 border-4 border-white/10 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
-        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-indigo-400 animate-pulse">Acedendo ao Cofre Global...</p>
+        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-indigo-400 animate-pulse">Sincronizando Cofre...</p>
       </div>
     );
   }
+
+  const currentDraft = draftQueue[0] || null;
 
   return (
     <div className="min-h-screen pb-20 md:pb-8 bg-slate-50 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
@@ -228,6 +252,7 @@ const App: React.FC = () => {
                 isCloudActive={isCloudActive}
                 error={state.error}
                 onUpload={handleUpload}
+                progressText={state.isLoading ? `Processando ${currentProcessIndex} de ${totalInBatch}...` : undefined}
                 onNavigateToSettings={() => setActiveTab('settings')}
               />
             )}
@@ -248,16 +273,15 @@ const App: React.FC = () => {
                 history={state.history} 
                 userProfile={state.userProfile} 
                 chatLog={state.chatHistory} 
-                onNewMessage={(msg) => setState(prev => ({ ...prev, chatHistory: [...prev.chatHistory, msg].slice(-20) }))} 
+                onNewMessage={(msg) => setState(prev => ({ ...prev, chatHistory: [...prev.chatHistory, msg].slice(-30) }))} 
               />
             )}
 
             {activeTab === 'reports' && <ReportsView history={state.history} />}
-            
             {activeTab === 'admin' && canAccessAdmin && <AdminDashboard />}
 
             {activeTab === 'settings' && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-6">
                  <ProfileForm 
                    profile={state.userProfile} 
                    onUpdate={(p) => setState(prev => ({ ...prev, userProfile: p }))}
@@ -276,12 +300,14 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* v1.3.0 Receipt Editor Overlay */}
-      {draftReceipt && (
+      {/* Editor Overlay - pops up for each item in draftQueue sequentially */}
+      {currentDraft && (
         <ReceiptEditor 
-          receipt={draftReceipt} 
+          receipt={currentDraft} 
           onSave={handleSaveDraft} 
-          onCancel={() => setDraftReceipt(null)}
+          onCancel={handleCancelDraft}
+          // v1.3.2: Show how many are left in the queue
+          queueInfo={draftQueue.length > 1 ? `Restam ${draftQueue.length - 1} documentos` : undefined}
         />
       )}
 

@@ -6,6 +6,7 @@ interface ReceiptEditorProps {
   receipt: ReceiptData;
   onSave: (updated: ReceiptData) => void;
   onCancel: () => void;
+  queueInfo?: string;
 }
 
 const CATEGORIES = [
@@ -13,7 +14,7 @@ const CATEGORIES = [
   'Snacks', 'Beverages', 'Household', 'Personal Care', 'Pets', 'Other'
 ];
 
-const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel }) => {
+const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel, queueInfo }) => {
   const [draft, setDraft] = useState<ReceiptData>(receipt);
 
   const calculatedTotal = useMemo(() => {
@@ -73,10 +74,17 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
         {/* Header Section */}
         <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-end justify-between gap-6 bg-slate-50/50">
           <div className="flex-1 space-y-4">
-            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-              <i className="fa-solid fa-pen-to-square text-indigo-600"></i>
-              Validar Dados
-            </h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                <i className="fa-solid fa-pen-to-square text-indigo-600"></i>
+                Validar Dados
+              </h2>
+              {queueInfo && (
+                <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
+                  {queueInfo}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Supermercado</label>
@@ -108,12 +116,12 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={onCancel} className="px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all">Cancelar</button>
+            <button onClick={onCancel} className="px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all">Descartar</button>
             <button 
               onClick={() => onSave({ ...draft, meta: { ...draft.meta, total_spent: calculatedTotal } })} 
               className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
             >
-              Guardar Talão
+              Confirmar
             </button>
           </div>
         </div>
@@ -215,7 +223,7 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
           </div>
           <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
              <i className="fa-solid fa-circle-info text-indigo-400"></i>
-             <p className="text-xs text-slate-300 max-w-xs leading-relaxed">Verifica se as categorias e preços coincidem com o papel para uma análise nutricional correta.</p>
+             <p className="text-xs text-slate-300 max-w-xs leading-relaxed">Verifica os dados antes de guardar. PDFs e fotos múltiplas são processados um a um.</p>
           </div>
         </div>
       </div>

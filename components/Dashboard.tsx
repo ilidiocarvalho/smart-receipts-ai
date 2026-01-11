@@ -13,7 +13,8 @@ interface DashboardProps {
   isSyncing: boolean;
   isCloudActive: boolean;
   error: string | null;
-  onUpload: (base64: string) => void;
+  onUpload: (files: { data: string, type: string }[]) => void;
+  progressText?: string;
   onNavigateToSettings: () => void;
 }
 
@@ -26,6 +27,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   isCloudActive,
   error,
   onUpload,
+  progressText,
   onNavigateToSettings
 }) => {
   const isOwner = userProfile.role === 'owner';
@@ -69,11 +71,10 @@ const Dashboard: React.FC<DashboardProps> = ({
       </header>
       
       <BudgetForecast profile={userProfile} history={history} />
-      <ReceiptUploader onUpload={onUpload} isLoading={isLoading} />
+      <ReceiptUploader onUpload={onUpload} isLoading={isLoading} progressText={progressText} />
       
       {error && <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl text-rose-700 text-xs font-black animate-shake">{error}</div>}
       
-      {/* If loading, we could show a placeholder, but ReceiptUploader already handles the loading UI */}
       {!isLoading && lastAnalysis && <AnalysisView data={lastAnalysis} />}
     </div>
   );
