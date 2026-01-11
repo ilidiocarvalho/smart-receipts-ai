@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import HistoryView from './components/HistoryView';
@@ -28,24 +28,26 @@ const INITIAL_PROFILE: UserContext = {
   role: 'user'
 };
 
-const SESSION_KEY = 'SR_SESSION_V132';
-const APP_VERSION = "1.3.2";
+const SESSION_KEY = 'SR_SESSION_V133';
+const APP_VERSION = "1.3.3";
 
 interface PendingFile {
   data: string;
   type: string;
 }
 
+export type ProcessingStep = 'idle' | 'compressing' | 'analyzing' | 'finalizing';
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [draftQueue, setDraftQueue] = useState<ReceiptData[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [currentProcessIndex, setCurrentProcessIndex] = useState(0);
   const [totalInBatch, setTotalInBatch] = useState(0);
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle');
   
-  // Defined migratedData to check for existing legacy information in local storage
+  const wakeLockRef = useRef<any>(null);
   const migratedData = localStorage.getItem('SR_LEGACY_DATA') || localStorage.getItem('SR_MOCK_CLOUD_FALLBACK');
 
   const [state, setState] = useState<AppState>({
@@ -60,6 +62,25 @@ const App: React.FC = () => {
 
   const isCloudActive = firebaseService.isUsingCloud();
   const canAccessAdmin = state.userProfile.role === 'owner' || (state as any).role === 'owner';
+
+  // v1.3.3 Wake Lock Implementation
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        console.log('Wake Lock is active');
+      } catch (err) {
+        console.error(`${err.name}, ${err.message}`);
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const boot = async () => {
@@ -152,13 +173,35 @@ const App: React.FC = () => {
     }
   };
 
-  // v1.3.2 Sequential Processing Logic
+  const processWithTimeout = async (file: PendingFile): Promise<ReceiptData> => {
+    return new Promise(async (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("TIMEOUT_ERROR"));
+      }, 60000); // 60s limit
+
+      try {
+        const result = await processReceipt(
+          file.data, 
+          file.type, 
+          state.userProfile, 
+          (step) => setProcessingStep(step)
+        );
+        clearTimeout(timeout);
+        resolve(result);
+      } catch (err) {
+        clearTimeout(timeout);
+        reject(err);
+      }
+    });
+  };
+
   const processNextInQueue = async (files: PendingFile[]) => {
     if (files.length === 0) return;
     
     setTotalInBatch(files.length);
     setCurrentProcessIndex(0);
-    setState(prev => ({ ...prev, isLoading: true }));
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    await requestWakeLock();
 
     const analyzedDrafts: ReceiptData[] = [];
     
@@ -166,24 +209,29 @@ const App: React.FC = () => {
       setCurrentProcessIndex(i + 1);
       const file = files[i];
       try {
-        const aiResult = await processReceipt(file.data, file.type, state.userProfile);
+        const aiResult = await processWithTimeout(file);
         const receipt: ReceiptData = {
           ...aiResult,
           id: crypto.randomUUID(),
-          // Se for imagem, usamos como preview. Se for PDF, poderíamos usar um ícone, mas por simplicidade deixamos vazio se não for imagem.
           imageUrl: file.type.startsWith('image/') ? `data:${file.type};base64,${file.data}` : undefined
         };
         analyzedDrafts.push(receipt);
-      } catch (err) {
+      } catch (err: any) {
         console.error(`Erro ao processar ficheiro ${i + 1}:`, err);
-        // Continuamos para os próximos mesmo se um falhar
+        if (err.message === 'TIMEOUT_ERROR') {
+          setState(prev => ({ ...prev, error: "A ligação demorou demasiado tempo. Verifique a internet e mantenha o ecrã ligado." }));
+          break; // Stop batch if we hit a timeout
+        }
       }
     }
 
+    releaseWakeLock();
+    setProcessingStep('idle');
     setDraftQueue(analyzedDrafts);
     setState(prev => ({ ...prev, isLoading: false }));
-    if (analyzedDrafts.length === 0) {
-      setState(prev => ({ ...prev, error: "Nenhum ficheiro pôde ser processado." }));
+    
+    if (analyzedDrafts.length === 0 && !state.error) {
+      setState(prev => ({ ...prev, error: "Não foi possível processar os ficheiros selecionados." }));
     }
   };
 
@@ -192,14 +240,11 @@ const App: React.FC = () => {
   };
 
   const handleSaveDraft = (finalReceipt: ReceiptData) => {
-    // Adicionar ao histórico real
     setState(prev => ({
       ...prev,
       lastAnalysis: finalReceipt,
       history: [finalReceipt, ...prev.history].slice(0, 100)
     }));
-    
-    // Remover o atual da fila e avançar para o próximo se existir
     setDraftQueue(prev => prev.slice(1));
     setActiveTab('dashboard');
   };
@@ -252,7 +297,9 @@ const App: React.FC = () => {
                 isCloudActive={isCloudActive}
                 error={state.error}
                 onUpload={handleUpload}
-                progressText={state.isLoading ? `Processando ${currentProcessIndex} de ${totalInBatch}...` : undefined}
+                processingStep={processingStep}
+                currentProcessIndex={currentProcessIndex}
+                totalInBatch={totalInBatch}
                 onNavigateToSettings={() => setActiveTab('settings')}
               />
             )}
@@ -300,13 +347,11 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Editor Overlay - pops up for each item in draftQueue sequentially */}
       {currentDraft && (
         <ReceiptEditor 
           receipt={currentDraft} 
           onSave={handleSaveDraft} 
           onCancel={handleCancelDraft}
-          // v1.3.2: Show how many are left in the queue
           queueInfo={draftQueue.length > 1 ? `Restam ${draftQueue.length - 1} documentos` : undefined}
         />
       )}

@@ -10,7 +10,11 @@ const getAIClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-export async function compressImage(base64Str: string, maxWidth = 1600, quality = 0.85): Promise<string> {
+/**
+ * v1.3.3: Optimized compression for faster network transit.
+ * Lowered maxWidth and quality to ensure files stay under ~500KB.
+ */
+export async function compressImage(base64Str: string, maxWidth = 1200, quality = 0.7): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = `data:image/jpeg;base64,${base64Str}`;
@@ -48,14 +52,15 @@ export async function processReceipt(
   base64Data: string,
   mimeType: string,
   userContext: UserContext,
+  onStep?: (step: 'compressing' | 'analyzing' | 'finalizing') => void,
   retryCount = 0
 ): Promise<ReceiptData> {
   try {
     const ai = getAIClient();
     let finalData = base64Data;
 
-    // Apenas comprimimos se for imagem. PDFs são enviados tal como estão.
     if (mimeType.startsWith('image/')) {
+      onStep?.('compressing');
       try {
         finalData = await compressImage(base64Data);
       } catch (e) {
@@ -63,6 +68,7 @@ export async function processReceipt(
       }
     }
 
+    onStep?.('analyzing');
     const promptText = `
       Analyze the provided document (receipt image or PDF) and the user's personal context.
       
@@ -71,24 +77,17 @@ export async function processReceipt(
 
       # Core Tasks:
       1. OCR: Extract store, date (YYYY-MM-DD), time (HH:MM), items, prices.
-      2. Normalize: Clean product names (e.g. "P. Queijo" -> "Pão de Queijo").
-      3. Categorize: Assign one of (Dairy, Produce, Bakery, Butcher, Pantry, Frozen, Snacks, Beverages, Household, Personal Care, Pets).
-      4. Compliance: Check if items fit the ${userContext.dietary_regime} diet.
-      5. Coaching: Provide a supportive message as a personal coach in Portuguese (PT-PT).
+      2. Normalize: Clean product names.
+      3. Categorize items into defined groups.
+      4. Check compliance with ${userContext.dietary_regime} diet.
+      5. Provide a personal coach message in Portuguese (PT-PT).
 
-      # Strict Output Format:
+      # Output:
       Return a single JSON object matching the defined schema.
     `;
 
     const mediaPart = {
-      inlineData: {
-        mimeType: mimeType,
-        data: finalData,
-      },
-    };
-
-    const textPart = {
-      text: promptText
+      inlineData: { mimeType, data: finalData },
     };
 
     const responseSchema = {
@@ -138,9 +137,11 @@ export async function processReceipt(
       required: ["meta", "items", "analysis", "coach_message"],
     };
 
+    // v1.3.3: Wrap in a promise to allow external timeout control if needed, 
+    // although App.tsx handles the main timeout.
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: { parts: [mediaPart, textPart] },
+      contents: { parts: [mediaPart, { text: promptText }] },
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
@@ -148,19 +149,14 @@ export async function processReceipt(
       },
     });
 
+    onStep?.('finalizing');
     const resultText = response.text;
     if (!resultText) throw new Error("A IA não retornou dados.");
     
     return JSON.parse(resultText);
   } catch (error: any) {
-    console.group("Erro Gemini API");
-    console.error("Mensagem:", error.message);
-    console.error("Stack:", error.stack);
-    console.groupEnd();
-
     if (retryCount < 1) {
-      console.warn("Tentando novamente...");
-      return processReceipt(base64Data, mimeType, userContext, retryCount + 1);
+      return processReceipt(base64Data, mimeType, userContext, onStep, retryCount + 1);
     }
     throw error;
   }
@@ -173,29 +169,11 @@ export async function chatWithAssistant(
   chatLog: ChatMessage[]
 ): Promise<string> {
   const ai = getAIClient();
-  
-  const systemInstruction = `
-    You are the "SmartReceipts AI Coach".
-    Your tone is professional, encouraging, and data-driven.
-    Response in Portuguese (PT-PT).
-    
-    # Knowledge Base:
-    - User Profile: ${JSON.stringify(userProfile)}
-    - Recent Shopping History: ${JSON.stringify(history.slice(0, 5).map(h => ({
-        date: h.meta.date,
-        store: h.meta.store,
-        total: h.meta.total_spent,
-        items: h.items.map(i => i.name_clean)
-      })))}
-  `;
-
+  const systemInstruction = `You are the SmartReceipts AI Coach. Response in PT-PT. Profile: ${JSON.stringify(userProfile)}`;
   const chat = ai.chats.create({
     model: 'gemini-3-flash-preview',
-    config: {
-      systemInstruction,
-    }
+    config: { systemInstruction }
   });
-
   const response = await chat.sendMessage({ message });
   return response.text || "Desculpe, não consegui processar a sua pergunta.";
 }

@@ -14,7 +14,9 @@ interface DashboardProps {
   isCloudActive: boolean;
   error: string | null;
   onUpload: (files: { data: string, type: string }[]) => void;
-  progressText?: string;
+  processingStep?: 'idle' | 'compressing' | 'analyzing' | 'finalizing';
+  currentProcessIndex?: number;
+  totalInBatch?: number;
   onNavigateToSettings: () => void;
 }
 
@@ -27,7 +29,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   isCloudActive,
   error,
   onUpload,
-  progressText,
+  processingStep,
+  currentProcessIndex,
+  totalInBatch,
   onNavigateToSettings
 }) => {
   const isOwner = userProfile.role === 'owner';
@@ -71,9 +75,24 @@ const Dashboard: React.FC<DashboardProps> = ({
       </header>
       
       <BudgetForecast profile={userProfile} history={history} />
-      <ReceiptUploader onUpload={onUpload} isLoading={isLoading} progressText={progressText} />
       
-      {error && <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl text-rose-700 text-xs font-black animate-shake">{error}</div>}
+      <ReceiptUploader 
+        onUpload={onUpload} 
+        isLoading={isLoading} 
+        processingStep={processingStep}
+        currentProcessIndex={currentProcessIndex}
+        totalInBatch={totalInBatch}
+      />
+      
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl text-rose-700 text-xs font-black animate-shake flex items-center gap-3">
+          <i className="fa-solid fa-circle-exclamation text-lg"></i>
+          <div>
+            <p className="uppercase tracking-widest mb-1">Erro de Processamento</p>
+            <p className="opacity-80 font-bold">{error}</p>
+          </div>
+        </div>
+      )}
       
       {!isLoading && lastAnalysis && <AnalysisView data={lastAnalysis} />}
     </div>
