@@ -15,22 +15,28 @@ import { processReceipt } from './services/geminiService';
 import { firebaseService } from './services/firebaseService';
 import { accessService } from './services/accessService';
 
+export const DEFAULT_CATEGORIES = [
+  'Laticínios', 'Frutas e Legumes', 'Padaria', 'Talho/Peixaria', 'Mercearia', 'Congelados', 
+  'Snacks', 'Bebidas', 'Limpeza', 'Higiene e Cuidado', 'Animais', 'Outros'
+];
+
 const INITIAL_PROFILE: UserContext = {
   user_name: "", 
   email: "",
-  dietary_regime: "None / Mixed",
+  dietary_regime: "Misto / Tudo",
   monthly_budget: 0, 
   current_month_spend: 0, 
   family_context: "",
   goals: [],
   account_status: 'trial',
   joined_at: new Date().toISOString(),
-  role: 'user'
+  role: 'user',
+  custom_categories: DEFAULT_CATEGORIES
 };
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.3.6";
+const APP_VERSION = "1.3.7";
 
 interface PendingFile {
   data: string;
@@ -43,7 +49,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isHydrated, setIsHydrated] = useState(false); // Critical: prevent saving empty state
+  const [isHydrated, setIsHydrated] = useState(false); 
   const [draftQueue, setDraftQueue] = useState<ReceiptData[]>([]);
   const [editingReceipt, setEditingReceipt] = useState<ReceiptData | null>(null);
   const [currentProcessIndex, setCurrentProcessIndex] = useState(0);
@@ -83,20 +89,17 @@ const App: React.FC = () => {
     }
   };
 
-  // v1.3.6: Robust Hydration & Boot
+  // v1.3.7: Atomic Boot sequence to prevent data loss race conditions
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
-      
+      let finalState: Partial<AppState> = {};
+
       // 1. Try Cache First
       const cached = localStorage.getItem(CACHE_KEY);
-      let localData: Partial<AppState> | null = null;
       if (cached) {
         try {
-          localData = JSON.parse(cached);
-          if (localData) {
-            setState(prev => ({ ...prev, ...localData }));
-          }
+          finalState = JSON.parse(cached);
         } catch (e) { console.error("Cache parsing failed", e); }
       }
 
@@ -109,8 +112,7 @@ const App: React.FC = () => {
             setIsSyncing(true);
             const cloudData = await firebaseService.syncPull(email);
             if (cloudData) {
-              setState(prev => ({ ...prev, ...cloudData }));
-              localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
+              finalState = { ...finalState, ...cloudData };
             }
           }
         } catch (e) { 
@@ -120,14 +122,25 @@ const App: React.FC = () => {
         }
       }
 
-      setIsHydrated(true); // Now we can safely save state changes
+      // Apply Portuguese Defaults if missing
+      if (finalState.userProfile && !finalState.userProfile.custom_categories) {
+        finalState.userProfile.custom_categories = DEFAULT_CATEGORIES;
+      }
+
+      // ONE single state update to finalize boot
+      if (finalState.userProfile && finalState.userProfile.email) {
+        setState(prev => ({ ...prev, ...finalState }));
+      }
+      
+      setIsHydrated(true); 
       setIsInitializing(false);
     };
     boot();
   }, []);
 
-  // v1.3.6: Safe Persistence - ONLY saves if hydrated and we have a user
+  // v1.3.7: Secure Persistence
   useEffect(() => {
+    // CRITICAL: NEVER save if not hydrated or if state is suspicious (e.g. email vanished)
     if (!isHydrated || !state.userProfile.email) return;
 
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
@@ -401,6 +414,7 @@ const App: React.FC = () => {
           receipt={currentEditorData} 
           onSave={handleSaveDraft} 
           onCancel={handleCancelDraft}
+          categories={state.userProfile.custom_categories || DEFAULT_CATEGORIES}
           queueInfo={editingReceipt ? "Modo Edição" : (draftQueue.length > 1 ? `Restam ${draftQueue.length - 1} documentos` : undefined)}
         />
       )}

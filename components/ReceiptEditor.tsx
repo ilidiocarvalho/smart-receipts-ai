@@ -6,15 +6,11 @@ interface ReceiptEditorProps {
   receipt: ReceiptData;
   onSave: (updated: ReceiptData) => void;
   onCancel: () => void;
+  categories: string[];
   queueInfo?: string;
 }
 
-const CATEGORIES = [
-  'Dairy', 'Produce', 'Bakery', 'Butcher', 'Pantry', 'Frozen', 
-  'Snacks', 'Beverages', 'Household', 'Personal Care', 'Pets', 'Other'
-];
-
-const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel, queueInfo }) => {
+const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel, categories, queueInfo }) => {
   const [draft, setDraft] = useState<ReceiptData>(receipt);
 
   const calculatedTotal = useMemo(() => {
@@ -55,7 +51,7 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
     const newItem: ReceiptItem = {
       name_raw: '',
       name_clean: 'Novo Item',
-      category: 'Other',
+      category: categories[0] || 'Outros',
       qty: 1,
       unit_price: 0,
       total_price: 0,
@@ -72,10 +68,8 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
 
   return (
     <div className="fixed inset-0 bg-slate-900 z-[100] flex flex-col animate-in slide-in-from-bottom-full duration-300">
-      {/* Scrollable Container (Everything flows together) */}
       <div className="flex-1 overflow-y-auto bg-slate-50 flex flex-col">
         
-        {/* Header Section (Non-sticky on mobile for fluid scroll) */}
         <div className="p-6 md:p-12 border-b border-slate-200 bg-white space-y-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -130,7 +124,6 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
           </div>
         </div>
 
-        {/* Items Grid */}
         <div className="p-6 md:p-12 space-y-6 flex-1">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Lista de Itens ({draft.items.length})</h3>
@@ -169,7 +162,7 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
                         onChange={e => handleUpdateItem(idx, 'category', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-100 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-indigo-100"
                       >
-                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -203,7 +196,6 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
                     </div>
                   </div>
                 </div>
-                {/* Background ID accent */}
                 <div className="absolute top-[-20px] left-[-20px] text-slate-50 opacity-10 select-none font-black text-6xl italic group-hover:scale-110 transition-transform">
                   {idx + 1}
                 </div>
@@ -223,7 +215,6 @@ const ReceiptEditor: React.FC<ReceiptEditorProps> = ({ receipt, onSave, onCancel
         </div>
       </div>
 
-      {/* Footer Controls (Compact and persistent at bottom) */}
       <div className="p-6 md:p-10 bg-slate-900 border-t border-white/10 text-white flex flex-col md:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-8 w-full md:w-auto">
           <div>

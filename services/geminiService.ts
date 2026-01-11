@@ -65,18 +65,19 @@ export async function processReceipt(
     }
 
     onStep?.('analyzing');
-    // v1.3.4: Refined prompt for faster inference
-    const promptText = `
-      OCR and analyze this receipt. Return ONLY JSON.
-      User Profile: ${userContext.user_name}, Budget: €${userContext.monthly_budget}, Diet: ${userContext.dietary_regime}.
-      
-      Tasks:
-      1. OCR: store, date (YYYY-MM-DD), time (HH:MM), totals.
-      2. Normalize products and categorize.
-      3. Evaluate ${userContext.dietary_regime} compliance.
-      4. Coach advice in PT-PT.
+    const categoriesList = userContext.custom_categories?.join(', ') || 'Laticínios, Frutas e Legumes, Padaria, Talho, Congelados, Snacks, Bebidas, Limpeza, Higiene, Animais, Outros';
 
-      Schema strictly: JSON matching meta, items, analysis, coach_message.
+    const promptText = `
+      Analise este talão de compras. Retorne APENAS JSON.
+      Perfil: ${userContext.user_name}, Orçamento: €${userContext.monthly_budget}, Dieta: ${userContext.dietary_regime}.
+      
+      Tarefa:
+      1. OCR: loja, data (YYYY-MM-DD), hora (HH:MM), totais.
+      2. Normalize produtos e use EXCLUSIVAMENTE estas categorias: [${categoriesList}].
+      3. Verifique conformidade com ${userContext.dietary_regime}.
+      4. Coaching em Português de Portugal (PT-PT).
+
+      Schema: JSON matching meta, items, analysis, coach_message.
     `;
 
     const mediaPart = {
@@ -160,7 +161,7 @@ export async function chatWithAssistant(
   chatLog: ChatMessage[]
 ): Promise<string> {
   const ai = getAIClient();
-  const systemInstruction = `You are the SmartReceipts AI Coach. Response in PT-PT. Profile: ${JSON.stringify(userProfile)}`;
+  const systemInstruction = `És o SmartReceipts AI Coach. Responde em PT-PT. Perfil: ${JSON.stringify(userProfile)}`;
   const chat = ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: { systemInstruction }
