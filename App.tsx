@@ -28,10 +28,9 @@ const INITIAL_PROFILE: UserContext = {
   role: 'user'
 };
 
-// v1.3.4: Stable Session Key to prevent forced logout on updates
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.3.4";
+const APP_VERSION = "1.3.5";
 
 interface PendingFile {
   data: string;
@@ -45,6 +44,7 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [draftQueue, setDraftQueue] = useState<ReceiptData[]>([]);
+  const [editingReceipt, setEditingReceipt] = useState<ReceiptData | null>(null);
   const [currentProcessIndex, setCurrentProcessIndex] = useState(0);
   const [totalInBatch, setTotalInBatch] = useState(0);
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle');
@@ -85,8 +85,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const boot = async () => {
       setIsInitializing(true);
-      
-      // 1. Try to load from Local Cache for instant UI
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         try {
@@ -94,8 +92,6 @@ const App: React.FC = () => {
           setState(prev => ({ ...prev, ...parsedCache, isLoading: false }));
         } catch (e) { console.error("Cache error", e); }
       }
-
-      // 2. Authenticate session
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
         try {
@@ -104,7 +100,6 @@ const App: React.FC = () => {
           const cloudData = await firebaseService.syncPull(email);
           if (cloudData) {
             setState(prev => ({ ...prev, ...cloudData, isLoading: false }));
-            // Update cache after cloud pull
             localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
           }
         } catch (e) { 
@@ -120,11 +115,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (isInitializing || !state.userProfile.email) return;
-    
-    // Save session
     localStorage.setItem(SESSION_KEY, JSON.stringify({ email: state.userProfile.email }));
-    
-    // Cloud & Cache Sync
     const timer = setTimeout(async () => {
       const dataToSync = {
         userProfile: state.userProfile,
@@ -132,9 +123,7 @@ const App: React.FC = () => {
         chatHistory: state.chatHistory,
         isCloudEnabled: state.isCloudEnabled
       };
-      
       localStorage.setItem(CACHE_KEY, JSON.stringify(dataToSync));
-
       if (state.isCloudEnabled) {
         setIsSyncing(true);
         try {
@@ -144,7 +133,6 @@ const App: React.FC = () => {
         }
       }
     }, 2000);
-    
     return () => clearTimeout(timer);
   }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isInitializing]);
 
@@ -201,11 +189,9 @@ const App: React.FC = () => {
 
   const processWithTimeout = async (file: PendingFile): Promise<ReceiptData> => {
     return new Promise(async (resolve, reject) => {
-      // v1.3.4: Increased to 90s for complex receipts
       const timeout = setTimeout(() => {
         reject(new Error("TIMEOUT_ERROR"));
       }, 90000); 
-
       try {
         const result = await processReceipt(
           file.data, 
@@ -224,15 +210,12 @@ const App: React.FC = () => {
 
   const processNextInQueue = async (files: PendingFile[]) => {
     if (files.length === 0) return;
-    
     setTotalInBatch(files.length);
     setCurrentProcessIndex(0);
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     await requestWakeLock();
-
     const analyzedDrafts: ReceiptData[] = [];
     let lastError: string | null = null;
-    
     for (let i = 0; i < files.length; i++) {
       setCurrentProcessIndex(i + 1);
       const file = files[i];
@@ -254,7 +237,6 @@ const App: React.FC = () => {
         break; 
       }
     }
-
     releaseWakeLock();
     setProcessingStep('idle');
     setDraftQueue(analyzedDrafts);
@@ -266,17 +248,38 @@ const App: React.FC = () => {
   };
 
   const handleSaveDraft = (finalReceipt: ReceiptData) => {
-    setState(prev => ({
-      ...prev,
-      lastAnalysis: finalReceipt,
-      history: [finalReceipt, ...prev.history].slice(0, 100)
-    }));
-    setDraftQueue(prev => prev.slice(1));
+    const isEdit = !!editingReceipt;
+    
+    setState(prev => {
+      const newHistory = isEdit 
+        ? prev.history.map(r => r.id === finalReceipt.id ? finalReceipt : r)
+        : [finalReceipt, ...prev.history].slice(0, 100);
+      
+      return {
+        ...prev,
+        lastAnalysis: finalReceipt,
+        history: newHistory
+      };
+    });
+
+    if (isEdit) {
+      setEditingReceipt(null);
+    } else {
+      setDraftQueue(prev => prev.slice(1));
+    }
     setActiveTab('dashboard');
   };
 
   const handleCancelDraft = () => {
-    setDraftQueue(prev => prev.slice(1));
+    if (editingReceipt) {
+      setEditingReceipt(null);
+    } else {
+      setDraftQueue(prev => prev.slice(1));
+    }
+  };
+
+  const handleEditHistory = (receipt: ReceiptData) => {
+    setEditingReceipt(receipt);
   };
 
   if (isInitializing && !state.userProfile.email) {
@@ -288,7 +291,7 @@ const App: React.FC = () => {
     );
   }
 
-  const currentDraft = draftQueue[0] || null;
+  const currentEditorData = editingReceipt || draftQueue[0] || null;
 
   return (
     <div className="min-h-screen pb-20 md:pb-8 bg-slate-50 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
@@ -338,6 +341,7 @@ const App: React.FC = () => {
                   setState(prev => ({ ...prev, lastAnalysis: receipt }));
                   setActiveTab('dashboard');
                 }}
+                onEditReceipt={handleEditHistory}
               />
             )}
 
@@ -373,12 +377,12 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {currentDraft && (
+      {currentEditorData && (
         <ReceiptEditor 
-          receipt={currentDraft} 
+          receipt={currentEditorData} 
           onSave={handleSaveDraft} 
           onCancel={handleCancelDraft}
-          queueInfo={draftQueue.length > 1 ? `Restam ${draftQueue.length - 1} documentos` : undefined}
+          queueInfo={editingReceipt ? "Modo Edição" : (draftQueue.length > 1 ? `Restam ${draftQueue.length - 1} documentos` : undefined)}
         />
       )}
 
