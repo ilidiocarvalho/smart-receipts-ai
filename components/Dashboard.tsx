@@ -2,7 +2,6 @@
 import React from 'react';
 import { UserContext, ReceiptData } from '../types';
 import BudgetForecast from './BudgetForecast';
-import AnalysisView from './AnalysisView';
 
 interface DashboardProps {
   userProfile: UserContext;
@@ -23,7 +22,6 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ 
   userProfile, 
   history, 
-  lastAnalysis, 
   isLoading, 
   error,
   onUploadTrigger,
@@ -31,7 +29,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   processingStep,
   currentProcessIndex,
   totalInBatch,
-  isCloudActive,
   onNavigateToSettings
 }) => {
   if (!userProfile.user_name) {
@@ -57,49 +54,51 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       <BudgetForecast profile={userProfile} history={history} />
       
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-3">
-          <button 
-            onClick={onUploadTrigger}
-            disabled={isLoading}
-            className={`w-full group relative overflow-hidden bg-indigo-600 text-white p-8 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all shadow-xl shadow-indigo-100 disabled:bg-indigo-900 disabled:cursor-not-allowed active:scale-[0.98]`}
-          >
-            {isLoading ? (
-              <>
-                <div className="relative">
-                  <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black">
-                    {currentProcessIndex}/{totalInBatch}
-                  </div>
+      {/* Action Buttons Row */}
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={onUploadTrigger}
+          disabled={isLoading}
+          className={`group relative overflow-hidden bg-indigo-600 text-white py-6 px-4 rounded-3xl flex flex-col items-center justify-center gap-2 transition-all shadow-xl shadow-indigo-100 disabled:bg-indigo-900 disabled:cursor-not-allowed active:scale-[0.98] h-32`}
+        >
+          {isLoading ? (
+            <>
+              <div className="relative">
+                <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center text-[8px] font-black">
+                  {currentProcessIndex}/{totalInBatch}
                 </div>
-                <div className="text-center space-y-2">
-                  <p className="font-black text-lg tracking-tight">IA a ler fatura...</p>
-                  <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest">Digitalizando ({processingStep})</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <i className="fa-solid fa-camera text-3xl"></i>
-                </div>
-                <div className="text-center">
-                  <p className="font-black text-xl tracking-tight">Nova Despesa</p>
-                  <p className="text-indigo-100 font-medium">Digitaliza agora o teu talão</p>
-                </div>
-              </>
-            )}
-          </button>
-        </div>
+              </div>
+              <div className="text-center">
+                <p className="font-black text-xs tracking-tight">IA Lendo...</p>
+                <p className="text-indigo-300 text-[8px] font-bold uppercase tracking-widest">{processingStep}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i className="fa-solid fa-camera text-xl"></i>
+              </div>
+              <div className="text-center">
+                <p className="font-black text-sm tracking-tight">Nova Despesa</p>
+                <p className="text-indigo-100 text-[9px] font-medium opacity-80">Digitalizar Talão</p>
+              </div>
+            </>
+          )}
+        </button>
         
         <button 
           onClick={onManualEntry}
           disabled={isLoading}
-          className="bg-white border-2 border-slate-100 text-slate-900 p-8 rounded-2xl flex flex-col items-center justify-center gap-3 hover:border-indigo-600 hover:bg-indigo-50/30 transition-all shadow-sm group active:scale-95 disabled:opacity-50"
+          className="bg-white border-2 border-slate-100 text-slate-900 py-6 px-4 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-indigo-600 hover:bg-indigo-50/30 transition-all shadow-sm group active:scale-95 disabled:opacity-50 h-32"
         >
-          <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+          <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
             <i className="fa-solid fa-keyboard text-xl"></i>
           </div>
-          <p className="font-black text-xs uppercase tracking-widest text-center">Manual</p>
+          <div className="text-center">
+            <p className="font-black text-sm tracking-tight">Manual</p>
+            <p className="text-slate-400 text-[9px] font-medium opacity-80">Inserir Dados</p>
+          </div>
         </button>
       </div>
       
@@ -112,8 +111,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       )}
-      
-      {!isLoading && lastAnalysis && <AnalysisView data={lastAnalysis} />}
     </div>
   );
 };

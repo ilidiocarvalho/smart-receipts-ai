@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ReceiptData } from '../types';
 import AnalysisView from './AnalysisView';
 
@@ -10,8 +10,22 @@ interface HistoryViewProps {
   onEditReceipt: (receipt: ReceiptData) => void;
 }
 
+const MONTHS = [
+  { val: '01', label: 'Janeiro' }, { val: '02', label: 'Fevereiro' }, { val: '03', label: 'Março' },
+  { val: '04', label: 'Abril' }, { val: '05', label: 'Maio' }, { val: '06', label: 'Junho' },
+  { val: '07', label: 'Julho' }, { val: '08', label: 'Agosto' }, { val: '09', label: 'Setembro' },
+  { val: '10', label: 'Outubro' }, { val: '11', label: 'Novembro' }, { val: '12', label: 'Dezembro' }
+];
+
 const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSelectReceipt, onEditReceipt }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  
+  // Filter States
+  const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+  const currentYear = new Date().getFullYear().toString();
+  
+  const [filterMonth, setFilterMonth] = useState(currentMonth);
+  const [filterYear, setFilterYear] = useState(currentYear);
 
   const toggleExpand = (item: ReceiptData) => {
     if (expandedId === item.id) {
@@ -22,20 +36,70 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSel
     }
   };
 
+  const yearsAvailable = useMemo(() => {
+    const years = new Set<string>();
+    years.add(new Date().getFullYear().toString());
+    history.forEach(h => {
+      const year = h.meta.date.split('-')[0];
+      if (year) years.add(year);
+    });
+    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  }, [history]);
+
+  const filteredHistory = useMemo(() => {
+    return history.filter(item => {
+      const [year, month] = item.meta.date.split('-');
+      return year === filterYear && month === filterMonth;
+    });
+  }, [history, filterMonth, filterYear]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <h2 className="text-3xl font-black text-slate-900 tracking-tight">O Teu Histórico {isCloudActive ? 'Global' : 'Local'}</h2>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">O Teu Histórico</h2>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+            {isCloudActive ? 'Cofre Sincronizado' : 'Cofre Local'}
+          </p>
+        </div>
+
+        {/* Filters UI */}
+        <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+           <div className="relative">
+             <select 
+               value={filterMonth}
+               onChange={(e) => setFilterMonth(e.target.value)}
+               className="appearance-none bg-slate-50 border border-slate-100 pl-3 pr-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500 transition-all cursor-pointer"
+             >
+               {MONTHS.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
+             </select>
+             <i className="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none"></i>
+           </div>
+
+           <div className="relative">
+             <select 
+               value={filterYear}
+               onChange={(e) => setFilterYear(e.target.value)}
+               className="appearance-none bg-slate-50 border border-slate-100 pl-3 pr-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500 transition-all cursor-pointer"
+             >
+               {yearsAvailable.map(y => <option key={y} value={y}>{y}</option>)}
+             </select>
+             <i className="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none"></i>
+           </div>
+        </div>
+      </div>
       
-      {history.length === 0 ? (
-        <div className="bg-white p-24 text-center rounded-[3rem] border border-slate-200 shadow-sm border-dashed">
-          <div className="w-24 h-24 bg-slate-50 text-slate-200 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-            <i className={`fa-solid ${isCloudActive ? 'fa-cloud-arrow-up' : 'fa-database'} text-4xl`}></i>
+      {filteredHistory.length === 0 ? (
+        <div className="bg-white p-16 text-center rounded-[3rem] border border-slate-200 shadow-sm border-dashed">
+          <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+            <i className="fa-solid fa-calendar-day text-3xl"></i>
           </div>
-          <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">Sem faturas guardadas</p>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Sem faturas neste período</p>
+          <p className="text-slate-300 text-xs font-medium">Experimenta mudar o filtro de mês ou ano.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {history.map((item) => (
+          {filteredHistory.map((item) => (
             <div key={item.id} className="space-y-4">
               <div 
                 className={`bg-white p-6 rounded-[2rem] border transition-all cursor-pointer group relative overflow-hidden flex items-center justify-between ${
@@ -55,7 +119,9 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSel
                   </div>
                   <div className="truncate max-w-[140px] md:max-w-xs space-y-1">
                      <p className="font-black text-slate-900 truncate text-lg tracking-tight">{item.meta.store}</p>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.meta.date}</p>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                       {item.meta.time} • {new Date(item.meta.date).toLocaleDateString()}
+                     </p>
                   </div>
                 </div>
 
