@@ -37,7 +37,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.5.1";
+const APP_VERSION = "1.5.2";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
