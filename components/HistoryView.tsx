@@ -26,6 +26,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSel
   
   const [filterMonth, setFilterMonth] = useState(currentMonth);
   const [filterYear, setFilterYear] = useState(currentYear);
+  const [filterStore, setFilterStore] = useState('ALL');
 
   const toggleExpand = (item: ReceiptData) => {
     if (expandedId === item.id) {
@@ -46,12 +47,22 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSel
     return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
   }, [history]);
 
+  const storesAvailable = useMemo(() => {
+    const stores = new Set<string>();
+    history.forEach(h => {
+      if (h.meta.store) stores.add(h.meta.store);
+    });
+    return Array.from(stores).sort();
+  }, [history]);
+
   const filteredHistory = useMemo(() => {
     return history.filter(item => {
       const [year, month] = item.meta.date.split('-');
-      return year === filterYear && month === filterMonth;
+      const monthMatch = year === filterYear && month === filterMonth;
+      const storeMatch = filterStore === 'ALL' || item.meta.store === filterStore;
+      return monthMatch && storeMatch;
     });
-  }, [history, filterMonth, filterYear]);
+  }, [history, filterMonth, filterYear, filterStore]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -64,7 +75,19 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSel
         </div>
 
         {/* Filters UI */}
-        <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+           <div className="relative">
+             <select 
+               value={filterStore}
+               onChange={(e) => setFilterStore(e.target.value)}
+               className="appearance-none bg-slate-50 border border-slate-100 pl-3 pr-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500 transition-all cursor-pointer min-w-[100px]"
+             >
+               <option value="ALL">Lojas (Todas)</option>
+               {storesAvailable.map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+             <i className="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none"></i>
+           </div>
+
            <div className="relative">
              <select 
                value={filterMonth}
@@ -95,7 +118,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, isCloudActive, onSel
             <i className="fa-solid fa-calendar-day text-3xl"></i>
           </div>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Sem faturas neste período</p>
-          <p className="text-slate-300 text-xs font-medium">Experimenta mudar o filtro de mês ou ano.</p>
+          <p className="text-slate-300 text-xs font-medium">Experimenta mudar o filtro de mês, ano ou supermercado.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

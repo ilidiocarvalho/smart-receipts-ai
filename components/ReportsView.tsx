@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { ReceiptData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -21,6 +20,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
   
   const [filterMonth, setFilterMonth] = useState(currentMonth);
   const [filterYear, setFilterYear] = useState(currentYear);
+  const [filterStore, setFilterStore] = useState('ALL');
 
   const yearsAvailable = useMemo(() => {
     const years = new Set<string>();
@@ -29,23 +29,32 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
       const year = h.meta.date.split('-')[0];
       if (year) years.add(year);
     });
-    // Fix: Explicitly convert to Number to avoid arithmetic errors on potentially ambiguous string types
     return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [history]);
+
+  const storesAvailable = useMemo(() => {
+    const stores = new Set<string>();
+    history.forEach(h => {
+      if (h.meta.store) stores.add(h.meta.store);
+    });
+    return Array.from(stores).sort();
   }, [history]);
 
   const filteredHistory = useMemo(() => {
     return history.filter(item => {
       const [year, month] = item.meta.date.split('-');
-      return year === filterYear && month === filterMonth;
+      const monthMatch = year === filterYear && month === filterMonth;
+      const storeMatch = filterStore === 'ALL' || item.meta.store === filterStore;
+      return monthMatch && storeMatch;
     });
-  }, [history, filterMonth, filterYear]);
+  }, [history, filterMonth, filterYear, filterStore]);
 
   // 1. Spending over time (Based on filtered period)
   const trendData = useMemo(() => {
     return [...filteredHistory].reverse().map(h => ({
       name: new Date(h.meta.date).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }),
       spent: h.meta.total_spent
-    })).slice(-10); // Show up to 10 entries of the month
+    })).slice(-10); 
   }, [filteredHistory]);
 
   // 2. Category totals (Filtered period)
@@ -58,9 +67,10 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
     }, {} as Record<string, number>);
 
     return Object.entries(catTotals)
-      .map(([name, value]) => ({ name, value }))
-      // Fix: Add explicit type annotations to ensure properties are treated as numbers for the arithmetic operation
-      .sort((a: {value: number}, b: {value: number}) => b.value - a.value);
+      // Fix: Cast 'value' as number to ensure correct type inference for downstream sorting
+      .map(([name, value]) => ({ name, value: value as number }))
+      // Fix: Removing explicit type annotations in sort parameters to rely on correctly inferred types from the map result
+      .sort((a, b) => b.value - a.value);
   }, [filteredHistory]);
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -74,7 +84,19 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
         </div>
 
         {/* Filters UI */}
-        <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+           <div className="relative">
+             <select 
+               value={filterStore}
+               onChange={(e) => setFilterStore(e.target.value)}
+               className="appearance-none bg-slate-50 border border-slate-100 pl-3 pr-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500 transition-all cursor-pointer min-w-[100px]"
+             >
+               <option value="ALL">Lojas (Todas)</option>
+               {storesAvailable.map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+             <i className="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none"></i>
+           </div>
+
            <div className="relative">
              <select 
                value={filterMonth}
@@ -105,7 +127,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
             <i className="fa-solid fa-chart-line text-3xl"></i>
           </div>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Sem dados analíticos para este período</p>
-          <p className="text-slate-300 text-xs font-medium">Digitalize faturas para gerar relatórios.</p>
+          <p className="text-slate-300 text-xs font-medium">Experimenta mudar o filtro de mês, ano ou supermercado.</p>
         </div>
       ) : (
         <>
@@ -165,7 +187,6 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Média por Fatura</p>
-                  {/* Fix: Add explicit type to reduce accumulator to resolve arithmetic type ambiguity */}
                   <p className="text-xl font-black text-slate-900">€{(filteredHistory.reduce((acc: number, curr) => acc + curr.meta.total_spent, 0) / (filteredHistory.length || 1)).toFixed(2)}</p>
                 </div>
               </div>
@@ -175,7 +196,6 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Poupado</p>
-                  {/* Fix: Explicitly type accumulator for safe numeric addition */}
                   <p className="text-xl font-black text-emerald-600">€{filteredHistory.reduce((acc: number, curr) => acc + curr.meta.total_saved, 0).toFixed(2)}</p>
                 </div>
               </div>

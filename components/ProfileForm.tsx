@@ -37,14 +37,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
     alert("Definições de perfil guardadas.");
   };
 
-  // v1.3.8: Immediate propagation for categories
   const addCategory = () => {
     if (!newCat.trim()) return;
     const currentCats = formData.custom_categories || DEFAULT_CATEGORIES;
     if (currentCats.includes(newCat.trim())) return;
     const updated = { ...formData, custom_categories: [...currentCats, newCat.trim()] };
     setFormData(updated);
-    onUpdate(updated); // Propagate immediately
+    onUpdate(updated); 
     setNewCat('');
   };
 
@@ -52,7 +51,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
     const currentCats = formData.custom_categories || DEFAULT_CATEGORIES;
     const updated = { ...formData, custom_categories: currentCats.filter(c => c !== cat) };
     setFormData(updated);
-    onUpdate(updated); // Propagate immediately
+    onUpdate(updated); 
   };
 
   const resetCategories = () => {
@@ -99,6 +98,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
         </div>
       </div>
 
+      {/* Main Profile Identity Card */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Definições da Tua Identidade</h4>
@@ -155,51 +155,53 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
             </div>
           </div>
 
-          {/* Categorias Management */}
-          <div className="space-y-4 pt-6 border-t border-slate-100">
-             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Gestão de Categorias (PT)</label>
-                  <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-emerald-100">Auto-Save</span>
-                </div>
-                <button type="button" onClick={resetCategories} className="text-[9px] font-black uppercase text-indigo-500 hover:underline">Repor Padrão</button>
-             </div>
-             
-             <div className="flex flex-wrap gap-2 min-h-[40px]">
-                {(formData.custom_categories || DEFAULT_CATEGORIES).map(cat => (
-                  <div key={cat} className="group flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl border border-indigo-100 hover:bg-white hover:shadow-md transition-all">
-                    <span className="text-xs font-bold">{cat}</span>
-                    <button type="button" onClick={() => removeCategory(cat)} className="text-indigo-300 hover:text-rose-500 transition-colors px-1">
-                      <i className="fa-solid fa-circle-xmark text-[10px]"></i>
-                    </button>
-                  </div>
-                ))}
-             </div>
-
-             <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={newCat}
-                  placeholder="Nova categoria..."
-                  onChange={e => setNewCat(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCategory())}
-                  className="flex-1 px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:border-indigo-600 outline-none transition-all"
-                />
-                <button 
-                  type="button" 
-                  onClick={addCategory}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-100"
-                >
-                  Adicionar
-                </button>
-             </div>
-          </div>
-
           <button type="submit" className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98]">
             <i className={`fa-solid ${isCloudActive ? 'fa-cloud-arrow-up' : 'fa-floppy-disk'}`}></i> 
             Guardar Dados do Perfil
           </button>
         </form>
+      </div>
+
+      {/* Independent Category Management Card */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+           <div className="flex items-center gap-2">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gestão de Categorias</h4>
+              <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-emerald-100">Auto-Save</span>
+           </div>
+           <button type="button" onClick={resetCategories} className="text-[9px] font-black uppercase text-indigo-500 hover:underline">Repor Padrão</button>
+        </div>
+        
+        <div className="p-8 space-y-6">
+           <div className="flex flex-wrap gap-2 min-h-[40px]">
+              {(formData.custom_categories || DEFAULT_CATEGORIES).map(cat => (
+                <div key={cat} className="group flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl border border-indigo-100 hover:bg-white hover:shadow-md transition-all">
+                  <span className="text-xs font-bold">{cat}</span>
+                  <button type="button" onClick={() => removeCategory(cat)} className="text-indigo-300 hover:text-rose-500 transition-colors px-1">
+                    <i className="fa-solid fa-circle-xmark text-[10px]"></i>
+                  </button>
+                </div>
+              ))}
+           </div>
+
+           <div className="flex flex-col sm:flex-row gap-3">
+              <input 
+                type="text" 
+                value={newCat}
+                placeholder="Nova categoria..."
+                onChange={e => setNewCat(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCategory())}
+                className="flex-1 px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:border-indigo-600 outline-none transition-all"
+              />
+              <button 
+                type="button" 
+                onClick={addCategory}
+                className="w-full sm:w-auto px-8 py-4 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+              >
+                <i className="fa-solid fa-plus"></i> Adicionar
+              </button>
+           </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between px-8 py-4 bg-slate-100/50 rounded-2xl">
