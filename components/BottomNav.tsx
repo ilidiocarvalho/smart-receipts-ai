@@ -14,7 +14,6 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
       <NavBtnMobile icon="fa-clock" label="History" active={activeTab === 'history'} onClick={() => onTabChange('history')} />
       <NavBtnMobile icon="fa-robot" label="Coach" active={activeTab === 'chat'} onClick={() => onTabChange('chat')} />
       <NavBtnMobile icon="fa-chart-pie" label="Stats" active={activeTab === 'reports'} onClick={() => onTabChange('reports')} />
-      <NavBtnMobile icon="fa-user-gear" label="Profile" active={activeTab === 'settings'} onClick={() => onTabChange('settings')} />
     </nav>
   );
 };

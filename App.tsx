@@ -36,7 +36,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.4.1";
+const APP_VERSION = "1.4.2";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -97,7 +97,7 @@ const App: React.FC = () => {
     if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
   };
 
-  // v1.4.1: Robust Merge Logic with Solution B support
+  // v1.4.1+: Robust Merge Logic with Solution B support
   useEffect(() => {
     const restoreSession = async () => {
       setIsInitializing(true);
@@ -110,9 +110,6 @@ const App: React.FC = () => {
             const cloudData = await firebaseService.syncPull(email);
             if (cloudData) {
               setState(prev => {
-                // v1.4.1 Merge Logic:
-                // We trust Cloud Data as the primary source for sync, 
-                // but we keep local images if they are missing in Cloud (legacy transition).
                 const mergedHistory = (cloudData.history || []).map((cloudReceipt: ReceiptData) => {
                   const localMatch = prev.history.find(h => h.id === cloudReceipt.id);
                   if (localMatch?.imageUrl && !cloudReceipt.imageUrl) {
@@ -121,7 +118,6 @@ const App: React.FC = () => {
                   return cloudReceipt;
                 });
 
-                // Safety: Avoid overwriting if cloud is completely empty but local isn't
                 if (cloudData.history?.length === 0 && prev.history.length > 0) {
                   return { ...prev, userProfile: cloudData.userProfile };
                 }
@@ -166,7 +162,6 @@ const App: React.FC = () => {
       if (state.isCloudEnabled && state.userProfile.email) {
         setIsSyncing(true);
         try { 
-          // v1.4.1: firebaseService now supports full sync with Solution B
           await firebaseService.syncPush(state.userProfile.email, dataToSave); 
         } 
         catch(e) { console.error("Cloud sync failed", e); }
@@ -315,7 +310,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-8 bg-slate-50 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <Header activeTab={activeTab} onTabChange={setActiveTab} isSyncing={isSyncing} isAdmin={canAccessAdmin} />
+      <Header 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        isSyncing={isSyncing} 
+        isAdmin={canAccessAdmin} 
+        isCloudActive={isCloudActive}
+      />
       
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 md:py-8">
         {!state.userProfile.email ? (

@@ -6,10 +6,17 @@ interface HeaderProps {
   activeTab: ViewTab;
   onTabChange: (tab: ViewTab) => void;
   isSyncing?: boolean;
-  isAdmin?: boolean; // v1.1.9
+  isAdmin?: boolean; 
+  isCloudActive?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = false, isAdmin = false }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  activeTab, 
+  onTabChange, 
+  isSyncing = false, 
+  isAdmin = false,
+  isCloudActive = false
+}) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -20,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
           <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 group-hover:scale-105 transition-transform">
             <i className="fa-solid fa-receipt text-sm"></i>
           </div>
-          <div className="hidden sm:block">
+          <div className="block">
             <h1 className="text-lg font-bold text-slate-900 leading-none tracking-tight">SmartReceipts</h1>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">AI Engine</p>
           </div>
@@ -37,19 +44,24 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange, isSyncing = fal
         </nav>
 
         <div className="flex items-center gap-4">
-          <div className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-colors ${isSyncing ? 'bg-amber-50' : 'bg-slate-50'}`}>
-            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></div>
-            <span className={`text-[10px] font-bold uppercase tracking-tighter hidden xs:block ${isSyncing ? 'text-amber-600' : 'text-slate-400'}`}>
-              {isSyncing ? 'A Guardar...' : 'Seguro'}
-            </span>
+          <div className="relative">
+            <button 
+              onClick={() => onTabChange('settings')}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg ring-4 ring-indigo-50' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 shadow-sm'}`}
+              title="Definições do Perfil"
+            >
+              <i className="fa-solid fa-sliders text-xs"></i>
+            </button>
+            {/* Status Dot Integrated */}
+            <div 
+              className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white transition-all duration-500 ${
+                isSyncing 
+                  ? 'bg-amber-400 animate-pulse' 
+                  : isCloudActive ? 'bg-emerald-500' : 'bg-slate-300'
+              }`}
+              title={isSyncing ? 'Sincronizando...' : isCloudActive ? 'Cloud Ligada' : 'Modo Local'}
+            ></div>
           </div>
-          <button 
-            onClick={() => onTabChange('settings')}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg ring-4 ring-indigo-50' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 shadow-sm'}`}
-            title="Definições do Perfil"
-          >
-            <i className="fa-solid fa-sliders text-xs"></i>
-          </button>
         </div>
       </div>
     </header>
