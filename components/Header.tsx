@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ViewTab } from '../types';
+import { ViewTab, UserRole } from '../types';
 
 interface HeaderProps {
   activeTab: ViewTab;
@@ -8,6 +8,7 @@ interface HeaderProps {
   isSyncing?: boolean;
   isAdmin?: boolean; 
   isCloudActive?: boolean;
+  role?: UserRole;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
@@ -15,8 +16,11 @@ const Header: React.FC<HeaderProps> = ({
   onTabChange, 
   isSyncing = false, 
   isAdmin = false,
-  isCloudActive = false
+  isCloudActive = false,
+  role
 }) => {
+  const isOwner = role === 'owner';
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -43,7 +47,13 @@ const Header: React.FC<HeaderProps> = ({
           )}
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {isOwner && (
+            <div className="hidden sm:flex items-center gap-1.5 bg-indigo-950 text-white text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-widest border border-indigo-800 shadow-sm">
+              <i className="fa-solid fa-crown text-amber-400"></i> Owner
+            </div>
+          )}
+          
           <div className="relative">
             <button 
               onClick={() => onTabChange('settings')}
@@ -52,14 +62,12 @@ const Header: React.FC<HeaderProps> = ({
             >
               <i className="fa-solid fa-sliders text-xs"></i>
             </button>
-            {/* Status Dot Integrated */}
             <div 
               className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white transition-all duration-500 ${
                 isSyncing 
                   ? 'bg-amber-400 animate-pulse' 
                   : isCloudActive ? 'bg-emerald-500' : 'bg-slate-300'
               }`}
-              title={isSyncing ? 'Sincronizando...' : isCloudActive ? 'Cloud Ligada' : 'Modo Local'}
             ></div>
           </div>
         </div>

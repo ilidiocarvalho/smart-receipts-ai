@@ -2,7 +2,6 @@
 import React from 'react';
 import { UserContext, ReceiptData } from '../types';
 import BudgetForecast from './BudgetForecast';
-import ReceiptUploader from './ReceiptUploader';
 import AnalysisView from './AnalysisView';
 
 interface DashboardProps {
@@ -13,7 +12,7 @@ interface DashboardProps {
   isSyncing: boolean;
   isCloudActive: boolean;
   error: string | null;
-  onUpload: (files: { data: string, type: string }[]) => void;
+  onUploadTrigger: () => void;
   onManualEntry: () => void;
   processingStep?: 'idle' | 'compressing' | 'analyzing' | 'finalizing';
   currentProcessIndex?: number;
@@ -26,18 +25,15 @@ const Dashboard: React.FC<DashboardProps> = ({
   history, 
   lastAnalysis, 
   isLoading, 
-  isSyncing,
-  isCloudActive,
   error,
-  onUpload,
+  onUploadTrigger,
   onManualEntry,
   processingStep,
   currentProcessIndex,
   totalInBatch,
+  isCloudActive,
   onNavigateToSettings
 }) => {
-  const isOwner = userProfile.role === 'owner';
-
   if (!userProfile.user_name) {
     return (
       <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-indigo-200/50 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group">
@@ -53,26 +49,18 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <header className="flex flex-col space-y-1 mb-6">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis">
-            Olá, {userProfile.user_name}! 👋
-          </h2>
-        </div>
+      <header className="flex flex-col space-y-2 mb-6">
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter truncate">
+          Olá, {userProfile.user_name}! 👋
+        </h2>
         
-        <div className="flex items-center justify-between mt-1">
-          <div className="flex items-center gap-3">
-            <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-               <i className={`fa-solid ${isCloudActive ? 'fa-cloud' : 'fa-hard-drive'} text-indigo-500`}></i> 
-               {isCloudActive ? 'Armazenamento Cloud Firestore' : 'Armazenamento Local (Offline)'}
-            </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-full shadow-sm">
+             <i className={`fa-solid ${isCloudActive ? 'fa-cloud' : 'fa-hard-drive'} text-indigo-500 text-[10px]`}></i> 
+             <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">
+               {isCloudActive ? 'Armazenamento Cloud' : 'Armazenamento Local'}
+             </span>
           </div>
-          
-          {isOwner && (
-            <span className="bg-indigo-950 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-md flex items-center gap-1.5 border border-indigo-800">
-              <i className="fa-solid fa-crown text-amber-400"></i> Owner
-            </span>
-          )}
         </div>
       </header>
       
@@ -80,14 +68,38 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="md:col-span-3">
-          <ReceiptUploader 
-            onUpload={onUpload} 
-            isLoading={isLoading} 
-            processingStep={processingStep}
-            currentProcessIndex={currentProcessIndex}
-            totalInBatch={totalInBatch}
-          />
+          <button 
+            onClick={onUploadTrigger}
+            disabled={isLoading}
+            className={`w-full group relative overflow-hidden bg-indigo-600 text-white p-8 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all shadow-xl shadow-indigo-100 disabled:bg-indigo-900 disabled:cursor-not-allowed active:scale-[0.98]`}
+          >
+            {isLoading ? (
+              <>
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black">
+                    {currentProcessIndex}/{totalInBatch}
+                  </div>
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="font-black text-lg tracking-tight">IA a ler fatura...</p>
+                  <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest">Digitalizando ({processingStep})</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <i className="fa-solid fa-camera text-3xl"></i>
+                </div>
+                <div className="text-center">
+                  <p className="font-black text-xl tracking-tight">Nova Despesa</p>
+                  <p className="text-indigo-100 font-medium">Digitaliza agora o teu talão</p>
+                </div>
+              </>
+            )}
+          </button>
         </div>
+        
         <button 
           onClick={onManualEntry}
           disabled={isLoading}
@@ -96,7 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
             <i className="fa-solid fa-keyboard text-xl"></i>
           </div>
-          <p className="font-black text-xs uppercase tracking-widest text-center">Entrada Manual</p>
+          <p className="font-black text-xs uppercase tracking-widest text-center">Manual</p>
         </button>
       </div>
       

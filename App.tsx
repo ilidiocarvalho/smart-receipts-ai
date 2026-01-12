@@ -36,7 +36,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.4.2";
+const APP_VERSION = "1.4.3";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -82,6 +82,7 @@ const App: React.FC = () => {
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle');
   
   const wakeLockRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<AppState>(getInitialState);
 
   const isCloudActive = firebaseService.isUsingCloud();
@@ -97,7 +98,6 @@ const App: React.FC = () => {
     if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
   };
 
-  // v1.4.1+: Robust Merge Logic with Solution B support
   useEffect(() => {
     const restoreSession = async () => {
       setIsInitializing(true);
@@ -246,10 +246,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpload = (files: PendingFile[]) => {
-    processNextInQueue(files);
-  };
-
   const processNextInQueue = async (files: PendingFile[]) => {
     if (files.length === 0) return;
     setTotalInBatch(files.length);
@@ -281,6 +277,28 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, isLoading: false, error: lastError }));
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
+    if (files.length === 0) return;
+
+    const processedFiles = await Promise.all(
+      files.map((file) => {
+        return new Promise<PendingFile>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            resolve({ data: base64, type: file.type });
+          };
+          reader.readAsDataURL(file);
+        });
+      })
+    );
+
+    processNextInQueue(processedFiles);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setActiveTab('dashboard'); // Always jump back to dashboard when uploading
+  };
+
   const handleSaveDraft = (finalReceipt: ReceiptData) => {
     const isEdit = !!editingReceipt;
     setState(prev => {
@@ -310,12 +328,22 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-8 bg-slate-50 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
+      <input 
+        type="file" 
+        accept="image/*,application/pdf" 
+        multiple
+        className="hidden" 
+        ref={fileInputRef}
+        onChange={handleFileChange}
+      />
+
       <Header 
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
         isSyncing={isSyncing} 
         isAdmin={canAccessAdmin} 
         isCloudActive={isCloudActive}
+        role={state.userProfile.role}
       />
       
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 md:py-8">
@@ -332,7 +360,7 @@ const App: React.FC = () => {
                 isSyncing={isSyncing} 
                 isCloudActive={isCloudActive} 
                 error={state.error} 
-                onUpload={handleUpload} 
+                onUploadTrigger={() => fileInputRef.current?.click()} 
                 onManualEntry={handleManualEntry}
                 processingStep={processingStep} 
                 currentProcessIndex={currentProcessIndex} 
@@ -361,7 +389,14 @@ const App: React.FC = () => {
       {currentEditorData && (
         <ReceiptEditor receipt={currentEditorData} onSave={handleSaveDraft} onCancel={handleCancelDraft} categories={state.userProfile.custom_categories || DEFAULT_CATEGORIES} />
       )}
-      {state.userProfile.email && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
+      {state.userProfile.email && (
+        <BottomNav 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab} 
+          onUploadClick={() => fileInputRef.current?.click()}
+          isAdmin={canAccessAdmin}
+        />
+      )}
     </div>
   );
 };
