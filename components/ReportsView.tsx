@@ -17,6 +17,7 @@ const MONTHS = [
 const LIFESTYLE_COLORS: Record<string, string> = {
   'healthy': '#10b981', // emerald-500
   'processed': '#f97316', // orange-500
+  'sugar': '#db2777', // pink-600
   'impulse': '#6366f1', // indigo-500
   'other': '#94a3b8'  // slate-400
 };
@@ -81,24 +82,24 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
 
   // 3. Lifestyle Tags Analytics
   const lifestyleData = useMemo(() => {
-    const tagsMap: Record<string, number> = { healthy: 0, processed: 0, impulse: 0, other: 0 };
-    let totalTaggedSpend = 0;
-
+    const tagsMap: Record<string, number> = { healthy: 0, processed: 0, sugar: 0, other: 0 };
+    
     filteredHistory.forEach(receipt => {
       receipt.items.forEach(item => {
         let hasPrimaryTag = false;
-        if (item.tags.includes('healthy')) { tagsMap.healthy += item.total_price; hasPrimaryTag = true; }
-        if (item.tags.includes('processed')) { tagsMap.processed += item.total_price; hasPrimaryTag = true; }
-        if (item.tags.includes('impulse')) { tagsMap.impulse += item.total_price; } // Impulse can overlap
+        // Prioritize tags for the chart
+        if (item.tags.includes('sugar')) { tagsMap.sugar += item.total_price; hasPrimaryTag = true; }
+        else if (item.tags.includes('processed')) { tagsMap.processed += item.total_price; hasPrimaryTag = true; }
+        else if (item.tags.includes('healthy')) { tagsMap.healthy += item.total_price; hasPrimaryTag = true; }
         
         if (!hasPrimaryTag) { tagsMap.other += item.total_price; }
-        totalTaggedSpend += item.total_price;
       });
     });
 
     return [
       { name: 'Saudável', value: tagsMap.healthy, key: 'healthy' },
       { name: 'Processado', value: tagsMap.processed, key: 'processed' },
+      { name: 'Açúcar/Doces', value: tagsMap.sugar, key: 'sugar' },
       { name: 'Outros', value: tagsMap.other, key: 'other' }
     ].filter(v => v.value > 0);
   }, [filteredHistory]);
@@ -121,7 +122,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Relatórios de Inteligência</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Visão Analítica Mensal v1.5.4</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Visão Analítica Mensal v1.5.5</p>
         </div>
 
         {/* Filters UI */}
@@ -214,7 +215,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
               </div>
             </div>
 
-            {/* Lifestyle Mix - NEW */}
+            {/* Lifestyle Mix - ENHANCED with 'sugar' */}
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 px-2">Perfil Lifestyle (Gasto €)</h3>
                <div className="h-64 flex flex-col items-center justify-center">
@@ -239,11 +240,11 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
                        />
                     </PieChart>
                  </ResponsiveContainer>
-                 <div className="flex gap-4 mt-2">
+                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-2 px-4">
                     {lifestyleData.map(d => (
                       <div key={d.key} className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full" style={{backgroundColor: LIFESTYLE_COLORS[d.key]}}></div>
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{d.name}</span>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{d.name}</span>
                       </div>
                     ))}
                  </div>
@@ -275,7 +276,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
               </div>
             </div>
 
-            {/* Impulse Heatmap / Insight - NEW */}
+            {/* Impulse Heatmap / Insight - ENHANCED */}
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Impulse Tracker</h3>
                <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex-1 space-y-6">
@@ -294,12 +295,12 @@ const ReportsView: React.FC<ReportsViewProps> = ({ history }) => {
                   <div className="space-y-4">
                      <p className="text-xs text-slate-500 leading-relaxed font-medium">
                         {impulseStats.percentage > 15 
-                           ? "Atenção: Uma fatia considerável das tuas compras são por impulso. Tenta usar a 'Lista de Compras' para filtrar necessidades reais."
+                           ? "Atenção: Muitas compras por impulso detectadas. O 'Petit Gâteau' e semelhantes são tentações que pesam no orçamento."
                            : "Bom trabalho! As tuas compras estão bem alinhadas com o planeamento. O teu nível de gasto emocional é baixo."}
                      </p>
                      <div className="flex flex-wrap gap-2">
-                        {filteredHistory.flatMap(r => r.items.filter(i => i.tags.includes('impulse'))).slice(0, 5).map((i, idx) => (
-                           <span key={idx} className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-indigo-100">
+                        {filteredHistory.flatMap(r => r.items.filter(i => i.tags.includes('impulse') || i.tags.includes('sugar'))).slice(0, 6).map((i, idx) => (
+                           <span key={idx} className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${i.tags.includes('sugar') ? 'bg-pink-50 text-pink-600 border-pink-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
                               {i.name_clean}
                            </span>
                         ))}

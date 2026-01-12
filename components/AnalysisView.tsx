@@ -170,6 +170,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ data }) => {
                         <span key={tIdx} className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                           tag === 'healthy' ? 'bg-emerald-50 text-emerald-600' : 
                           tag === 'processed' ? 'bg-orange-50 text-orange-600' : 
+                          tag === 'sugar' ? 'bg-pink-50 text-pink-600' : 
                           tag === 'impulse' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-500'
                         }`}>
                           {tag}

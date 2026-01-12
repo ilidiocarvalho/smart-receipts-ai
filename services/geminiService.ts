@@ -72,14 +72,21 @@ export async function processReceipt(
       Perfil: ${userContext.user_name}, Orçamento: €${userContext.monthly_budget}, Dieta: ${userContext.dietary_regime}.
       
       Tarefa:
-      1. OCR: Extraia loja, data (YYYY-MM-DD), hora (HH:MM), totais. Se não encontrar data use hoje. Se não encontrar hora use 12:00.
+      1. OCR: Extraia loja, data (YYYY-MM-DD), hora (HH:MM), totais.
       2. Normalize produtos e use EXCLUSIVAMENTE estas categorias: [${categoriesList}].
       3. Verifique conformidade com ${userContext.dietary_regime}.
       4. Coaching em Português de Portugal (PT-PT).
-      5. IMPORTANTE: Para preços e quantidades use apenas números. Se o valor for "2,50" retorne 2.5.
-      6. BEST EFFORT: Se a imagem estiver tremida ou com pouca luz, extraia o máximo possível. Não retorne erro se conseguir identificar o Total e a Loja.
+      5. IMPORTANTE - Lógica de Tags:
+         - 'healthy': Alimentos frescos, naturais, proteínas magras.
+         - 'processed': Alimentos industriais, refeições prontas, ultra-processados. 
+         - 'sugar': Doces, sobremesas (ex: Petit Gâteau, Gelados), bolachas doces.
+         - 'impulse': Compras supérfluas, snacks na caixa, guloseimas.
+         REGRAS DE OURO: 
+         - Um item como "Petit Gâteau" DEVE ter tags ['processed', 'sugar', 'impulse']. 
+         - NÃO use tags de conformidade dietética (ex: vegetariano) para justificar junk food. Priorize o perfil nutricional real.
+      6. BEST EFFORT para imagens difíceis.
 
-      Schema: JSON matching meta, items, analysis, coach_message. Seja tolerante com campos em falta, use valores padrão em vez de falhar.
+      Schema: JSON matching meta, items, analysis, coach_message.
     `;
 
     const mediaPart = {
@@ -147,7 +154,6 @@ export async function processReceipt(
     if (!resultText) throw new Error("A IA não retornou dados.");
     
     const parsed = JSON.parse(resultText);
-    // Sanitize scan_quality to match type
     if (!['High', 'Medium', 'Low'].includes(parsed.meta.scan_quality)) {
       parsed.meta.scan_quality = 'Medium';
     }
@@ -169,7 +175,6 @@ export async function chatWithAssistant(
 ): Promise<string> {
   const ai = getAIClient();
   
-  // Context Building v1.4.7
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -193,7 +198,6 @@ export async function chatWithAssistant(
   ESTADO ATUAL (Mês ${currentMonth + 1}):
   - Total Gasto: €${spentThisMonth.toFixed(2)}
   - Orçamento Mensal: €${userProfile.monthly_budget}
-  - Número de Faturas este mês: ${historyThisMonth.length}
   
   RESUMO DO HISTÓRICO RECENTE:
   ${JSON.stringify(historySummary)}
