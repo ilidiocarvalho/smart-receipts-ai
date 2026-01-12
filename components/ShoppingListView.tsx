@@ -16,6 +16,9 @@ interface ProductSummary {
   category?: string;
 }
 
+const normalizeStr = (str: string) => 
+  str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingList, onUpdate }) => {
   const [newItemName, setNewItemName] = useState('');
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
@@ -23,6 +26,9 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
   const [catalogSearch, setCatalogSearch] = useState('');
   const [selectedInCatalog, setSelectedInCatalog] = useState<Set<string>>(new Set());
   const [catalogStoreFilter, setCatalogStoreFilter] = useState('ALL');
+  
+  // New state for filtering active list by store
+  const [listStoreFilter, setListStoreFilter] = useState('ALL');
   
   const searchDropdownRef = useRef<HTMLDivElement>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -84,12 +90,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
     return allHistoryProducts.slice(0, 10);
   }, [allHistoryProducts]);
 
-  // Predictive search results (autocomplete)
+  // Predictive search results (autocomplete) - Now accent-insensitive
   const predictiveResults = useMemo(() => {
     if (!newItemName.trim() || newItemName.length < 2) return [];
-    const term = newItemName.toLowerCase();
+    const term = normalizeStr(newItemName);
     return allHistoryProducts
-      .filter(p => p.name.toLowerCase().includes(term))
+      .filter(p => normalizeStr(p.name).includes(term))
       .slice(0, 5);
   }, [allHistoryProducts, newItemName]);
 
@@ -148,9 +154,11 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
     setEditingItem(null);
   };
 
+  // Catalog filtering - Now accent-insensitive
   const filteredCatalog = useMemo(() => {
+    const term = normalizeStr(catalogSearch);
     return allHistoryProducts.filter(p => {
-      const nameMatch = p.name.toLowerCase().includes(catalogSearch.toLowerCase());
+      const nameMatch = normalizeStr(p.name).includes(term);
       const storeMatch = catalogStoreFilter === 'ALL' || p.preferredStore === catalogStoreFilter;
       return nameMatch && storeMatch;
     });
@@ -159,12 +167,25 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
   const activeItems = shoppingList.filter(i => !i.isChecked);
   const checkedItems = shoppingList.filter(i => i.isChecked);
 
+  // Calculate stores present in the active shopping list for filtering
+  const activeListStores = useMemo(() => {
+    const stores = new Set<string>();
+    activeItems.forEach(i => stores.add(i.preferredStore));
+    return Array.from(stores).sort();
+  }, [activeItems]);
+
+  // Filter the active items based on selected store chip
+  const displayedActiveItems = useMemo(() => {
+    if (listStoreFilter === 'ALL') return activeItems;
+    return activeItems.filter(item => item.preferredStore === listStoreFilter);
+  }, [activeItems, listStoreFilter]);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Lista de Compras</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Planeamento Inteligente v1.5.2</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Planeamento Inteligente v1.5.3</p>
         </div>
         
         {checkedItems.length > 0 && (
@@ -270,9 +291,33 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
           </div>
         ) : (
           <>
+            {/* Supermarket Filter Chips for the Active List */}
+            {activeListStores.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Filtrar por Supermercado</h3>
+                <div className="flex overflow-x-auto gap-2 no-scrollbar pb-1 px-1">
+                   <button 
+                     onClick={() => setListStoreFilter('ALL')}
+                     className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${listStoreFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white border border-slate-200 text-slate-400'}`}
+                   >
+                     Ver Todos
+                   </button>
+                   {activeListStores.map(store => (
+                     <button 
+                       key={store}
+                       onClick={() => setListStoreFilter(store)}
+                       className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${listStoreFilter === store ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white border border-slate-200 text-slate-400'}`}
+                     >
+                       {store}
+                     </button>
+                   ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
-              {activeItems.map((item) => (
-                <div key={item.id} className="bg-white p-5 rounded-[1.8rem] border border-slate-200 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
+              {displayedActiveItems.map((item) => (
+                <div key={item.id} className="bg-white p-5 rounded-[1.8rem] border border-slate-200 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all animate-in fade-in slide-in-from-left-2 duration-300">
                   <div className="flex items-center gap-4 flex-1">
                     <button onClick={() => toggleItem(item.id)} className="w-8 h-8 rounded-xl border-2 border-slate-100 flex items-center justify-center text-white hover:bg-slate-50 transition-colors">
                       <i className="fa-solid fa-check text-[10px] opacity-0 group-hover:opacity-30 text-indigo-500"></i>
@@ -297,6 +342,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
                   </div>
                 </div>
               ))}
+              
+              {listStoreFilter !== 'ALL' && displayedActiveItems.length === 0 && (
+                 <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-[2rem]">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Sem itens para {listStoreFilter}</p>
+                 </div>
+              )}
             </div>
 
             {checkedItems.length > 0 && (
