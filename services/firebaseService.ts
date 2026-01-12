@@ -18,8 +18,7 @@ const db = app ? getFirestore(app) : null;
 const LOCAL_FALLBACK_KEY = 'SR_MOCK_CLOUD_FALLBACK';
 
 /**
- * Helper para processar os dados vindos do Firestore
- * v1.2.1: Garante que se o 'role' estiver na raiz, ele é movido para dentro do userProfile
+ * Helper to process cloud data
  */
 const processCloudData = (data: any) => {
   if (!data) return null;
@@ -37,20 +36,31 @@ export const firebaseService = {
     const key = email.toLowerCase().trim();
     if (!key) return;
 
+    // v1.4.0: Ultra-Light Sync Strategy
+    // We strip imageUrl from history to keep the document size below 1MB.
+    // This allows syncing thousands of receipts without hitting Firestore limits.
+    const strippedHistory = (data.history || []).map((receipt: any) => {
+      const { imageUrl, ...rest } = receipt;
+      return rest;
+    });
+
+    const strippedData = {
+      ...data,
+      history: strippedHistory,
+      updatedAt: new Date().toISOString()
+    };
+
     if (!db) {
       console.warn("⚠️ Firebase não configurado. Usando fallback local.");
       const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
-      mock[key] = data;
+      mock[key] = strippedData;
       localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(mock));
       return;
     }
 
     try {
-      // v1.2.1: Ao gravar, também garantimos que o role atual do perfil vai para a raiz
-      // para facilitar a visualização no Firebase Console e manter consistência
-      const payload = {
-        ...data,
-        updatedAt: new Date().toISOString()
+      const payload: any = {
+        ...strippedData
       };
       
       if (data.userProfile?.role) {
@@ -98,10 +108,6 @@ export const firebaseService = {
     }
   },
 
-  /**
-   * v1.1.9 / v1.2.1 / v1.2.2: Lista todos os documentos de utilizadores
-   * Retorna o objeto completo processado para permitir estatísticas globais.
-   */
   async listAllUsers(): Promise<any[]> {
     if (!db) {
       const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');

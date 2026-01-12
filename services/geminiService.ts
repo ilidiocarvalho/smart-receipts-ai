@@ -77,6 +77,7 @@ export async function processReceipt(
       3. Verifique conformidade com ${userContext.dietary_regime}.
       4. Coaching em Português de Portugal (PT-PT).
       5. IMPORTANTE: Para preços e quantidades use apenas números. Se o valor for "2,50" retorne 2.5.
+      6. BEST EFFORT: Se a imagem estiver tremida ou com pouca luz, extraia o máximo possível. Não retorne erro se conseguir identificar o Total e a Loja.
 
       Schema: JSON matching meta, items, analysis, coach_message. Seja tolerante com campos em falta, use valores padrão em vez de falhar.
     `;

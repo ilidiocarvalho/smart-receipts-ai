@@ -36,7 +36,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.3.9";
+const APP_VERSION = "1.4.0";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -97,7 +97,7 @@ const App: React.FC = () => {
     if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
   };
 
-  // v1.3.9: Boot with "Smarter Merge" - don't let old cloud data wipe new local history
+  // v1.4.0: Hybrid Sync Merge - Restore images from local cache while syncing data from Cloud
   useEffect(() => {
     const restoreSession = async () => {
       setIsInitializing(true);
@@ -110,12 +110,24 @@ const App: React.FC = () => {
             const cloudData = await firebaseService.syncPull(email);
             if (cloudData) {
               setState(prev => {
-                // If cloud history is shorter than local history, cloud might be stale
-                if (cloudData.history?.length < prev.history?.length) {
-                  console.warn("Cloud data seems stale compared to local. Keeping local history.");
-                  return { ...prev, userProfile: cloudData.userProfile }; // Still update profile maybe
+                // v1.4.0: Merge Logic
+                // If cloud history is missing images (due to 1MB limit sync push), 
+                // we try to restore them from our current local state.
+                const mergedHistory = (cloudData.history || []).map((cloudReceipt: ReceiptData) => {
+                  const localMatch = prev.history.find(h => h.id === cloudReceipt.id);
+                  if (localMatch?.imageUrl && !cloudReceipt.imageUrl) {
+                    return { ...cloudReceipt, imageUrl: localMatch.imageUrl };
+                  }
+                  return cloudReceipt;
+                });
+
+                // Safety: if cloud history is significantly shorter, cloud might be stale
+                if (cloudData.history?.length < prev.history?.length - 2) {
+                  console.warn("Cloud data seems stale. Keeping local history.");
+                  return { ...prev, userProfile: cloudData.userProfile }; 
                 }
-                return { ...prev, ...cloudData };
+
+                return { ...prev, ...cloudData, history: mergedHistory };
               });
             }
           }
@@ -154,7 +166,10 @@ const App: React.FC = () => {
     const cloudTimer = setTimeout(async () => {
       if (state.isCloudEnabled && state.userProfile.email) {
         setIsSyncing(true);
-        try { await firebaseService.syncPush(state.userProfile.email, dataToSave); } 
+        try { 
+          // v1.4.0: firebaseService now handles stripping imageUrl internally
+          await firebaseService.syncPush(state.userProfile.email, dataToSave); 
+        } 
         catch(e) { console.error("Cloud sync failed", e); }
         finally { setIsSyncing(false); }
       }
