@@ -168,11 +168,43 @@ export async function chatWithAssistant(
   chatLog: ChatMessage[]
 ): Promise<string> {
   const ai = getAIClient();
-  const systemInstruction = `És o SmartReceipts AI Coach. Responde em PT-PT. Perfil: ${JSON.stringify(userProfile)}`;
+  
+  // Context Building v1.4.7
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  
+  const historyThisMonth = history.filter(r => {
+    const d = new Date(r.meta.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  
+  const spentThisMonth = historyThisMonth.reduce((acc, r) => acc + r.meta.total_spent, 0);
+  
+  const historySummary = history.slice(0, 10).map(r => ({
+    loja: r.meta.store,
+    data: r.meta.date,
+    total: r.meta.total_spent,
+    principais_categorias: Array.from(new Set(r.items.map(i => i.category))).slice(0, 3)
+  }));
+
+  const systemInstruction = `És o SmartReceipts AI Coach. Responde em PT-PT. 
+  Perfil do Utilizador: ${JSON.stringify(userProfile)}
+  ESTADO ATUAL (Mês ${currentMonth + 1}):
+  - Total Gasto: €${spentThisMonth.toFixed(2)}
+  - Orçamento Mensal: €${userProfile.monthly_budget}
+  - Número de Faturas este mês: ${historyThisMonth.length}
+  
+  RESUMO DO HISTÓRICO RECENTE:
+  ${JSON.stringify(historySummary)}
+  
+  Responde com base nestes dados. Se o utilizador perguntar sobre gastos ou tendências, usa estes valores reais.`;
+
   const chat = ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: { systemInstruction }
   });
+  
   const response = await chat.sendMessage({ message });
   return response.text || "Desculpe, não consegui processar a sua pergunta.";
 }
