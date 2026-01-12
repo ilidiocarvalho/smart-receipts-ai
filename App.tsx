@@ -36,7 +36,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.4.4";
+const APP_VERSION = "1.4.5";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -369,7 +369,12 @@ const App: React.FC = () => {
               />
             )}
             {activeTab === 'history' && (
-              <HistoryView history={state.history} isCloudActive={isCloudActive} onSelectReceipt={(r) => { setState(p => ({ ...p, lastAnalysis: r })); setActiveTab('dashboard'); }} onEditReceipt={setEditingReceipt} />
+              <HistoryView 
+                history={state.history} 
+                isCloudActive={isCloudActive} 
+                onSelectReceipt={(r) => setState(p => ({ ...p, lastAnalysis: r }))} 
+                onEditReceipt={setEditingReceipt} 
+              />
             )}
             {activeTab === 'chat' && <ChatAssistant history={state.history} userProfile={state.userProfile} chatLog={state.chatHistory} onNewMessage={(msg) => setState(p => ({ ...p, chatHistory: [...p.chatHistory, msg].slice(-30) }))} />}
             {activeTab === 'reports' && <ReportsView history={state.history} />}
