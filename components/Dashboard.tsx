@@ -53,15 +53,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter truncate">
           Olá, {userProfile.user_name}! 👋
         </h2>
-        
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-full shadow-sm">
-             <i className={`fa-solid ${isCloudActive ? 'fa-cloud' : 'fa-hard-drive'} text-indigo-500 text-[10px]`}></i> 
-             <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">
-               {isCloudActive ? 'Armazenamento Cloud' : 'Armazenamento Local'}
-             </span>
-          </div>
-        </div>
       </header>
       
       <BudgetForecast profile={userProfile} history={history} />

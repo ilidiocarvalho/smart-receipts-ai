@@ -49,7 +49,7 @@ const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center gap-3">
           {isOwner && (
-            <div className="hidden sm:flex items-center gap-1.5 bg-indigo-950 text-white text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-widest border border-indigo-800 shadow-sm">
+            <div className="flex items-center gap-1.5 bg-indigo-950 text-white text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-widest border border-indigo-800 shadow-sm">
               <i className="fa-solid fa-crown text-amber-400"></i> Owner
             </div>
           )}

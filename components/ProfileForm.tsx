@@ -75,14 +75,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
              <h3 className="text-xl font-black text-slate-900 tracking-tight">
                {isCloudActive ? 'Sessão Sincronizada' : 'Sessão Local'}
              </h3>
-             <span className={`${isCloudActive ? 'bg-emerald-500' : 'bg-slate-400'} text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1 self-center md:self-auto`}>
-               <span className={`w-1.5 h-1.5 bg-white rounded-full ${isCloudActive ? 'animate-pulse' : ''}`}></span> 
-               {isCloudActive ? 'Online' : 'Offline'}
-             </span>
+             <div className="flex items-center gap-2 self-center md:self-auto">
+               <span className={`${isCloudActive ? 'bg-emerald-500' : 'bg-slate-400'} text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1`}>
+                 <span className={`w-1.5 h-1.5 bg-white rounded-full ${isCloudActive ? 'animate-pulse' : ''}`}></span> 
+                 {isCloudActive ? 'Online' : 'Offline'}
+               </span>
+               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-full">
+                  <i className={`fa-solid ${isCloudActive ? 'fa-cloud' : 'fa-hard-drive'} text-indigo-500 text-[8px]`}></i> 
+                  <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest">
+                    {isCloudActive ? 'Cloud' : 'Local Storage'}
+                  </span>
+               </div>
+             </div>
           </div>
           <p className="text-base font-bold text-indigo-600 mt-1">{profile.email}</p>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-            As tuas alterações são guardadas instantaneamente no dispositivo.
+            As tuas alterações são guardadas instantaneamente no destino indicado acima.
           </p>
         </div>
         
