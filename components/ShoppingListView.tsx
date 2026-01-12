@@ -14,37 +14,47 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
 
   // Identify frequent products and their best price/store
   const suggestions = useMemo(() => {
-    const productStats: Record<string, { count: number; stores: Record<string, number>; minPrice: number }> = {};
+    const productStats: Record<string, { count: number; stores: Record<string, number>; minPrice: number; displayName: string }> = {};
 
     history.forEach(receipt => {
       receipt.items.forEach(item => {
-        const name = item.name_clean.trim();
-        if (!name) return;
+        const rawName = item.name_clean.trim();
+        if (!rawName) return;
+        
+        // Normalize name for better grouping (case-insensitive)
+        const normalizedName = rawName.toLowerCase();
 
-        if (!productStats[name]) {
-          productStats[name] = { count: 0, stores: {}, minPrice: Infinity };
+        if (!productStats[normalizedName]) {
+          productStats[normalizedName] = { 
+            count: 0, 
+            stores: {}, 
+            minPrice: Infinity,
+            displayName: rawName // Use original casing from the first occurrence
+          };
         }
 
-        productStats[name].count += 1;
-        productStats[name].minPrice = Math.min(productStats[name].minPrice, item.unit_price);
+        productStats[normalizedName].count += 1;
+        productStats[normalizedName].minPrice = Math.min(productStats[normalizedName].minPrice, item.unit_price);
         
         const store = receipt.meta.store;
-        productStats[name].stores[store] = (productStats[name].stores[store] || 0) + 1;
+        productStats[normalizedName].stores[store] = (productStats[normalizedName].stores[store] || 0) + 1;
       });
     });
 
     return Object.entries(productStats)
-      .filter(([_, stats]) => stats.count >= 2) // Frequent if bought at least twice
-      .map(([name, stats]) => {
-        // Find most frequent store
+      .filter(([_, stats]) => stats.count >= 1) // Lowered to 1 to show suggestions immediately
+      .map(([_, stats]) => {
+        // Find most frequent store for this item
         const preferredStore = Object.entries(stats.stores).sort((a, b) => b[1] - a[1])[0][0];
         return {
-          name,
+          name: stats.displayName,
           preferredStore,
-          bestPrice: stats.minPrice === Infinity ? 0 : stats.minPrice
+          bestPrice: stats.minPrice === Infinity ? 0 : stats.minPrice,
+          count: stats.count
         };
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      // Sort by frequency (descending) then by name
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [history]);
 
   const addItem = (name: string, store = 'Qualquer', price = 0) => {
@@ -126,7 +136,9 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
       {/* Frequent Suggestions Shelf */}
       {suggestions.length > 0 && (
         <section className="space-y-4">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Comprados Frequentemente</h3>
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">
+            Sugestões do teu Histórico
+          </h3>
           <div className="flex overflow-x-auto gap-3 pb-4 no-scrollbar -mx-1 px-1">
             {suggestions.map((s, idx) => {
               const alreadyInList = shoppingList.some(item => item.name.toLowerCase() === s.name.toLowerCase() && !item.isChecked);
@@ -143,7 +155,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({ history, shoppingLi
                       <i className="fa-solid fa-shop mr-1"></i> {s.preferredStore}
                     </span>
                     <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter">
-                      <i className="fa-solid fa-tag mr-1"></i> Best: €{s.bestPrice.toFixed(2)}
+                      <i className="fa-solid fa-tag mr-1"></i> Melhor: €{s.bestPrice.toFixed(2)}
                     </span>
                   </div>
                 </button>
