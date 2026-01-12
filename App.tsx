@@ -36,7 +36,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.4.1";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -97,7 +97,7 @@ const App: React.FC = () => {
     if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
   };
 
-  // v1.4.0: Hybrid Sync Merge - Restore images from local cache while syncing data from Cloud
+  // v1.4.1: Robust Merge Logic with Solution B support
   useEffect(() => {
     const restoreSession = async () => {
       setIsInitializing(true);
@@ -110,9 +110,9 @@ const App: React.FC = () => {
             const cloudData = await firebaseService.syncPull(email);
             if (cloudData) {
               setState(prev => {
-                // v1.4.0: Merge Logic
-                // If cloud history is missing images (due to 1MB limit sync push), 
-                // we try to restore them from our current local state.
+                // v1.4.1 Merge Logic:
+                // We trust Cloud Data as the primary source for sync, 
+                // but we keep local images if they are missing in Cloud (legacy transition).
                 const mergedHistory = (cloudData.history || []).map((cloudReceipt: ReceiptData) => {
                   const localMatch = prev.history.find(h => h.id === cloudReceipt.id);
                   if (localMatch?.imageUrl && !cloudReceipt.imageUrl) {
@@ -121,10 +121,9 @@ const App: React.FC = () => {
                   return cloudReceipt;
                 });
 
-                // Safety: if cloud history is significantly shorter, cloud might be stale
-                if (cloudData.history?.length < prev.history?.length - 2) {
-                  console.warn("Cloud data seems stale. Keeping local history.");
-                  return { ...prev, userProfile: cloudData.userProfile }; 
+                // Safety: Avoid overwriting if cloud is completely empty but local isn't
+                if (cloudData.history?.length === 0 && prev.history.length > 0) {
+                  return { ...prev, userProfile: cloudData.userProfile };
                 }
 
                 return { ...prev, ...cloudData, history: mergedHistory };
@@ -167,7 +166,7 @@ const App: React.FC = () => {
       if (state.isCloudEnabled && state.userProfile.email) {
         setIsSyncing(true);
         try { 
-          // v1.4.0: firebaseService now handles stripping imageUrl internally
+          // v1.4.1: firebaseService now supports full sync with Solution B
           await firebaseService.syncPush(state.userProfile.email, dataToSave); 
         } 
         catch(e) { console.error("Cloud sync failed", e); }

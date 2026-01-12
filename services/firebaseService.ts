@@ -1,6 +1,17 @@
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  collection, 
+  writeBatch,
+  query,
+  orderBy,
+  limit
+} from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY,
@@ -36,40 +47,41 @@ export const firebaseService = {
     const key = email.toLowerCase().trim();
     if (!key) return;
 
-    // v1.4.0: Ultra-Light Sync Strategy
-    // We strip imageUrl from history to keep the document size below 1MB.
-    // This allows syncing thousands of receipts without hitting Firestore limits.
-    const strippedHistory = (data.history || []).map((receipt: any) => {
-      const { imageUrl, ...rest } = receipt;
-      return rest;
-    });
-
-    const strippedData = {
-      ...data,
-      history: strippedHistory,
-      updatedAt: new Date().toISOString()
-    };
-
     if (!db) {
       console.warn("⚠️ Firebase não configurado. Usando fallback local.");
       const mock = JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '{}');
-      mock[key] = strippedData;
+      mock[key] = data;
       localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(mock));
       return;
     }
 
     try {
-      const payload: any = {
-        ...strippedData
-      };
+      const batch = writeBatch(db);
       
-      if (data.userProfile?.role) {
-        payload.role = data.userProfile.role;
+      // 1. Save Main User Document (Profile, Chat, Stats)
+      const userDocRef = doc(db, "users", key);
+      const userPayload: any = {
+        userProfile: data.userProfile,
+        chatHistory: data.chatHistory || [],
+        isCloudEnabled: data.isCloudEnabled,
+        updatedAt: new Date().toISOString(),
+        role: data.userProfile?.role || 'user'
+      };
+      batch.set(userDocRef, userPayload);
+
+      // 2. Save Receipts to Sub-collection (Solution B)
+      // We only sync the last 100 receipts to maintain performance
+      const receipts = (data.history || []).slice(0, 100);
+      const historyColRef = collection(db, "users", key, "history");
+      
+      for (const receipt of receipts) {
+        const receiptDocRef = doc(historyColRef, receipt.id);
+        batch.set(receiptDocRef, receipt);
       }
 
-      await setDoc(doc(db, "users", key), payload);
+      await batch.commit();
     } catch (error) {
-      console.error("❌ Erro ao sincronizar com Firestore:", error);
+      console.error("❌ Erro ao sincronizar com Firestore (Solution B):", error);
       throw error;
     }
   },
@@ -84,12 +96,25 @@ export const firebaseService = {
     }
 
     try {
+      // 1. Get Main User Data
       const docSnap = await getDoc(doc(db, "users", key));
-      if (docSnap.exists()) {
-        return processCloudData(docSnap.data());
-      }
-      return null;
+      if (!docSnap.exists()) return null;
+
+      const mainData = docSnap.data();
+      
+      // 2. Get Receipts from Sub-collection
+      const historyColRef = collection(db, "users", key, "history");
+      const q = query(historyColRef, orderBy("meta.date", "desc"), limit(100));
+      const querySnapshot = await getDocs(q);
+      
+      const history = querySnapshot.docs.map(doc => doc.data());
+
+      return processCloudData({
+        ...mainData,
+        history
+      });
     } catch (error) {
+      console.error("❌ Erro ao puxar dados da Cloud:", error);
       return null;
     }
   },
@@ -115,14 +140,15 @@ export const firebaseService = {
     }
     try {
       const querySnapshot = await getDocs(collection(db, "users"));
-      return querySnapshot.docs.map(doc => processCloudData(doc.data()));
+      const users = [];
+      for (const d of querySnapshot.docs) {
+        // For admin list, we usually just need the profile, but let's fetch summary if needed
+        users.push(processCloudData(d.data()));
+      }
+      return users;
     } catch (error) {
       console.error("Erro ao listar todos os utilizadores:", error);
       return [];
     }
-  },
-
-  async uploadImage(base64: string): Promise<string> {
-    return `data:image/jpeg;base64,${base64}`;
   }
 };
