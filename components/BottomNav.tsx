@@ -55,7 +55,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, onUploadC
         </div>
       )}
 
-      {/* Main Thinner Floating Bar */}
+      {/* Main Floating Bar */}
       <nav className="bg-slate-900/95 backdrop-blur-2xl py-2 flex justify-between items-center px-4 rounded-[2rem] shadow-2xl border border-white/10">
         <NavBtnMobile 
           icon="fa-house" 
@@ -64,10 +64,10 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, onUploadC
           onClick={() => onTabChange('dashboard')} 
         />
         <NavBtnMobile 
-          icon="fa-clock" 
-          label="History" 
-          active={activeTab === 'history'} 
-          onClick={() => onTabChange('history')} 
+          icon="fa-list-check" 
+          label="Lista" 
+          active={activeTab === 'shopping-list'} 
+          onClick={() => onTabChange('shopping-list')} 
         />
         
         {/* Central Quick Action: Upload */}
@@ -87,13 +87,19 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, onUploadC
           onClick={() => onTabChange('chat')} 
         />
         
-        {/* Overflow / More Button */}
+        <NavBtnMobile 
+          icon="fa-clock" 
+          label="História" 
+          active={activeTab === 'history'} 
+          onClick={() => onTabChange('history')} 
+        />
+
+        {/* Overflow Menu (hidden for now to fit history, but accessible via logic if needed) */}
         <button 
           onClick={() => setShowOverflow(!showOverflow)} 
-          className={`flex flex-col items-center justify-center gap-1 w-full py-1.5 transition-all rounded-xl ${showOverflow || activeTab === 'reports' || activeTab === 'admin' ? 'text-indigo-400' : 'text-slate-500'}`}
+          className={`flex flex-col items-center justify-center gap-1 px-3 py-1.5 transition-all rounded-xl ${showOverflow || activeTab === 'reports' || activeTab === 'admin' ? 'text-indigo-400' : 'text-slate-500'}`}
         >
           <i className="fa-solid fa-ellipsis text-base"></i>
-          <span className="text-[7px] font-black uppercase tracking-tighter">Mais</span>
         </button>
       </nav>
     </div>

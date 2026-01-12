@@ -1,5 +1,5 @@
 
-export type ViewTab = 'dashboard' | 'history' | 'chat' | 'reports' | 'settings' | 'admin';
+export type ViewTab = 'dashboard' | 'history' | 'chat' | 'reports' | 'settings' | 'admin' | 'shopping-list';
 
 export interface ChatMessage {
   role: 'user' | 'model';
@@ -21,7 +21,16 @@ export interface UserContext {
   promo_code?: string;
   joined_at: string;
   role?: UserRole;
-  custom_categories?: string[]; // Added v1.3.7
+  custom_categories?: string[]; 
+}
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  preferredStore: string;
+  bestPrice: number;
+  isChecked: boolean;
+  addedAt: string;
 }
 
 export interface ReceiptItem {
@@ -66,4 +75,5 @@ export interface AppState {
   error: string | null;
   chatHistory: ChatMessage[];
   isCloudEnabled: boolean;
+  shoppingList: ShoppingItem[];
 }

@@ -17,6 +17,8 @@ interface DashboardProps {
   currentProcessIndex?: number;
   totalInBatch?: number;
   onNavigateToSettings: () => void;
+  shoppingListCount: number;
+  onNavigateToList: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -29,7 +31,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   processingStep,
   currentProcessIndex,
   totalInBatch,
-  onNavigateToSettings
+  onNavigateToSettings,
+  shoppingListCount,
+  onNavigateToList
 }) => {
   if (!userProfile.user_name) {
     return (
@@ -53,6 +57,23 @@ const Dashboard: React.FC<DashboardProps> = ({
       </header>
       
       <BudgetForecast profile={userProfile} history={history} />
+
+      {/* Shopping List Widget */}
+      <button 
+        onClick={onNavigateToList}
+        className="w-full bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between hover:border-indigo-300 transition-all active:scale-[0.99] group"
+      >
+        <div className="flex items-center gap-4">
+           <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-xl group-hover:bg-indigo-600 group-hover:text-white transition-all">
+             <i className="fa-solid fa-list-check"></i>
+           </div>
+           <div className="text-left">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">A tua Lista</p>
+              <p className="text-sm font-black text-slate-900">{shoppingListCount > 0 ? `${shoppingListCount} itens por comprar` : 'Lista completa!'}</p>
+           </div>
+        </div>
+        <i className="fa-solid fa-chevron-right text-slate-300 group-hover:text-indigo-600 transition-colors"></i>
+      </button>
       
       {/* Action Buttons Row */}
       <div className="grid grid-cols-2 gap-4">

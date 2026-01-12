@@ -10,7 +10,8 @@ import ChatAssistant from './components/ChatAssistant';
 import AdminDashboard from './components/AdminDashboard';
 import BottomNav from './components/BottomNav';
 import ReceiptEditor from './components/ReceiptEditor';
-import { UserContext, AppState, ReceiptData, ViewTab } from './types';
+import ShoppingListView from './components/ShoppingListView';
+import { UserContext, AppState, ReceiptData, ViewTab, ShoppingItem } from './types';
 import { processReceipt } from './services/geminiService';
 import { firebaseService } from './services/firebaseService';
 import { accessService } from './services/accessService';
@@ -36,7 +37,7 @@ const INITIAL_PROFILE: UserContext = {
 
 const SESSION_KEY = 'SR_SESSION_PERSISTENT_V1';
 const CACHE_KEY = 'SR_LOCAL_CACHE_V1';
-const APP_VERSION = "1.4.8";
+const APP_VERSION = "1.5.0";
 
 const getInitialState = (): AppState => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -48,6 +49,7 @@ const getInitialState = (): AppState => {
     error: null,
     chatHistory: [],
     isCloudEnabled: true,
+    shoppingList: []
   };
 
   if (cached) {
@@ -119,10 +121,10 @@ const App: React.FC = () => {
                 });
 
                 if (cloudData.history?.length === 0 && prev.history.length > 0) {
-                  return { ...prev, userProfile: cloudData.userProfile };
+                  return { ...prev, userProfile: cloudData.userProfile, shoppingList: cloudData.shoppingList || [] };
                 }
 
-                return { ...prev, ...cloudData, history: mergedHistory };
+                return { ...prev, ...cloudData, history: mergedHistory, shoppingList: cloudData.shoppingList || prev.shoppingList };
               });
             }
           }
@@ -144,7 +146,8 @@ const App: React.FC = () => {
       userProfile: state.userProfile,
       history: state.history,
       chatHistory: state.chatHistory,
-      isCloudEnabled: state.isCloudEnabled
+      isCloudEnabled: state.isCloudEnabled,
+      shoppingList: state.shoppingList
     };
 
     const rawCache = localStorage.getItem(CACHE_KEY);
@@ -170,7 +173,7 @@ const App: React.FC = () => {
     }, 5000);
 
     return () => clearTimeout(cloudTimer);
-  }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, isInitializing]);
+  }, [state.userProfile, state.history, state.chatHistory, state.isCloudEnabled, state.shoppingList, isInitializing]);
 
   const handleManualEntry = () => {
     const manualReceipt: ReceiptData = {
@@ -315,6 +318,10 @@ const App: React.FC = () => {
     if (editingReceipt) setEditingReceipt(null); else setDraftQueue(prev => prev.slice(1));
   };
 
+  const updateShoppingList = (updated: ShoppingItem[]) => {
+    setState(prev => ({ ...prev, shoppingList: updated }));
+  };
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
@@ -365,7 +372,9 @@ const App: React.FC = () => {
                 processingStep={processingStep} 
                 currentProcessIndex={currentProcessIndex} 
                 totalInBatch={totalInBatch} 
-                onNavigateToSettings={() => setActiveTab('settings')} 
+                onNavigateToSettings={() => setActiveTab('settings')}
+                shoppingListCount={state.shoppingList.filter(i => !i.isChecked).length}
+                onNavigateToList={() => setActiveTab('shopping-list')}
               />
             )}
             {activeTab === 'history' && (
@@ -374,6 +383,13 @@ const App: React.FC = () => {
                 isCloudActive={isCloudActive} 
                 onSelectReceipt={(r) => setState(p => ({ ...p, lastAnalysis: r }))} 
                 onEditReceipt={setEditingReceipt} 
+              />
+            )}
+            {activeTab === 'shopping-list' && (
+              <ShoppingListView 
+                history={state.history} 
+                shoppingList={state.shoppingList} 
+                onUpdate={updateShoppingList} 
               />
             )}
             {activeTab === 'chat' && <ChatAssistant history={state.history} userProfile={state.userProfile} chatLog={state.chatHistory} onNewMessage={(msg) => setState(p => ({ ...p, chatHistory: [...p.chatHistory, msg].slice(-30) }))} />}

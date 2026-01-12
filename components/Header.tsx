@@ -40,6 +40,7 @@ const Header: React.FC<HeaderProps> = ({
         <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
           <NavBtn label="Home" icon="fa-house" active={activeTab === 'dashboard'} onClick={() => onTabChange('dashboard')} />
           <NavBtn label="Histórico" icon="fa-clock" active={activeTab === 'history'} onClick={() => onTabChange('history')} />
+          <NavBtn label="Lista" icon="fa-list-check" active={activeTab === 'shopping-list'} onClick={() => onTabChange('shopping-list')} />
           <NavBtn label="Coach IA" icon="fa-robot" active={activeTab === 'chat'} onClick={() => onTabChange('chat')} />
           <NavBtn label="Relatórios" icon="fa-chart-pie" active={activeTab === 'reports'} onClick={() => onTabChange('reports')} />
           {isAdmin && (
